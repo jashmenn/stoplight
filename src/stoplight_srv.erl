@@ -66,7 +66,8 @@ init([]) ->
 %%--------------------------------------------------------------------
 
 handle_call(_Request, _From, State) -> 
-    {reply, todo_reply, State}.
+    % {reply, {}, State}.
+    {noreply, State}.
 
 % e.g.
 % handle_call({create_ring}, _From, State) ->
