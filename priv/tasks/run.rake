@@ -1,5 +1,12 @@
+def root
+  File.dirname(__FILE__)  + "/../../"
+end
+def server_name 
+  "stoplight"
+end
+
 namespace :server do
-  task :start do
+  task :start => [:compile, :boot] do
     # erlang do
     #   testing true
     #   options :path => "./ebin", :cookie => "chordjerl"
@@ -10,8 +17,6 @@ namespace :server do
     #       end
     #   end
     # end
+    sh "erl -pa #{root}/ebin -pa #{root}/deps/*/ebin -sname #{server_name}_srv -s reloader -boot #{server_name}", :verbose => true
   end
 end
-
-# -s reloader -boot hermes 
-# erl -sname stoplight_srv -pa ebin/ -run stoplight_srv_sup sterl -sname stoplight_srv -pa ebin/ -run stoplight_srv_sup start
