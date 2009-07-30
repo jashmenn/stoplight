@@ -10,8 +10,15 @@
                              % {comm, chordjerl_com}
                           ]).
 
+-record(noderef, {
+    pidname,
+    hostname,
+    port,
+    ip
+  }).
+
 -record(srv_state, {
-    ppid
+    pid
   }).
 
 -record(client_state, {

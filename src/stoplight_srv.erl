@@ -50,9 +50,9 @@ start_link(_Type, _Args) ->
 %%--------------------------------------------------------------------
 
 init([]) -> 
-    ?TRACE(foo, bar),
+    % ?TRACE(foo, bar),
     {ok, #srv_state{
-                  ppid=self()
+                  pid=self()
               }}.
 
 %%--------------------------------------------------------------------
@@ -66,8 +66,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 
 handle_call(_Request, _From, State) -> 
-    % {reply, {}, State}.
-    {noreply, State}.
+    {reply, ok, State}.
 
 % e.g.
 % handle_call({create_ring}, _From, State) ->

@@ -15,7 +15,7 @@ init([Type, Args]) ->
   TimeoutTime = 5000,
   SupFlags = {RestartStrategy, MaxRestarts, MaxTimeBetRestarts},
 
-  NodeServer         = {?SERVER_MODULE, {?SERVER_MODULE, start_link, [Type, Args]}, permanent, TimeoutTime, worker, []},
+  NodeServer = {?SERVER_MODULE, {?SERVER_MODULE, start_link, [Type, Args]}, permanent, TimeoutTime, worker, []},
 
   {ok, {SupFlags, [
       NodeServer 
