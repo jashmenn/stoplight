@@ -14,7 +14,8 @@
     pidname,
     hostname,
     port,
-    ip
+    ip,
+    pidref
   }).
 
 -record(srv_state, {
