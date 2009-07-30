@@ -11,7 +11,7 @@
                           ]).
 
 -record(srv_state, {
-    pid
+    ppid
   }).
 
 -record(client_state, {

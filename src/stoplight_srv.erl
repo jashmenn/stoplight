@@ -9,7 +9,8 @@
 -behaviour(gen_server).
 -include_lib("../include/defines.hrl").
 
--export([start/0]).
+% -export([start_link/2]).
+-export([start_link/2]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -25,15 +26,16 @@
 %% Function: start() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Alias for start_link
 %%--------------------------------------------------------------------
-start() ->
-    start_link(?DEFAULT_CONFIG). 
+% start() ->
+%     start_link(?DEFAULT_CONFIG). 
 
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Config) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [Config], []).
+start_link(_Type, _Args) ->
+  io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
+  gen_server:start_link({local, ?SERVER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 %%====================================================================
 %% gen_server callbacks
@@ -50,7 +52,7 @@ start_link(Config) ->
 init([]) -> 
     ?TRACE(foo, bar),
     {ok, #srv_state{
-                  pid=self()
+                  ppid=self()
               }}.
 
 %%--------------------------------------------------------------------
