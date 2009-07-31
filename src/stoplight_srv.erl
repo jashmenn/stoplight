@@ -35,7 +35,7 @@
 %%--------------------------------------------------------------------
 start_link(_Type, _Args) ->
   io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
-  gen_server:start_link({local, ?SERVER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+  gen_server:start_link({global, ?SERVER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 %%====================================================================
 %% gen_server callbacks
@@ -66,7 +66,7 @@ init([]) ->
 %%--------------------------------------------------------------------
 
 handle_call(_Request, _From, State) -> 
-    {reply, ok, State}.
+    {reply, okay, State}.
 
 % e.g.
 % handle_call({create_ring}, _From, State) ->

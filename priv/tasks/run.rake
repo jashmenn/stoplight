@@ -6,19 +6,24 @@ def server_name
 end
 
 namespace :server do
-  task :start => [:compile, :boot] do
-    # sh "erl -pa #{root}/ebin -pa #{root}/deps/*/ebin -sname #{server_name}_srv -s reloader -boot #{server_name}", :verbose => true
-    sh "erl -pa #{root}/ebin -pa #{root}/deps/*/ebin -sname #{server_name}_srv -boot #{server_name}", :verbose => true
+  1.upto(4) do |i| 
+    desc "start server #{i}"
+    task "start#{i}" => [:compile, :boot] do
+      sh "erl -pa #{root}/ebin -pa #{root}/deps/*/ebin -name #{server_name}_srv -s reloader -boot #{server_name}", :verbose => true
+    end
   end
 end
 
 namespace :client do
   task :start => [:compile, :boot] do
-    hostname = %x{basename `hostname` .local}.strip
+    # hostname = %x{basename `hostname` .local}.strip
+    # hostname = %x{hostname}.strip
+    hostname = "YPCMC05684.yellowpages.local" # bah
     sh %Q{
         erl -pa #{root}/ebin -pa #{root}/deps/*/ebin \
-        -sname #{server_name}_client \
+        -name #{server_name}_client \
         -stoplight '#{hostname}' \
+        -s reloader \
         -run #{server_name}_client 
     }, :verbose => true
   end

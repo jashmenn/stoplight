@@ -22,7 +22,7 @@ def ebin_dirs
 end
 
 def erl
-    "erl"
+  "erl"
 end
 
 task :boot => [:compile] do
@@ -33,3 +33,4 @@ remove_task :compile
 task :compile do
   sh "#{erl} -pa #{ebin_dirs} -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'", :verbose => true
 end
+
