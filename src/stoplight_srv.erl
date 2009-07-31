@@ -20,6 +20,7 @@
 
 %% Macros
 -define(SERVER, ?MODULE).
+% -define(SERVER, node()).
 
 %%====================================================================
 %% API
@@ -37,7 +38,7 @@
 %%--------------------------------------------------------------------
 start_link(_Type, _Args) ->
   io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
-  gen_server:start_link({global, ?SERVER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+  gen_server:start_link({local, ?SERVER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 %%====================================================================
 %% gen_server callbacks
@@ -58,8 +59,9 @@ init([]) ->
                       nodename=node(),
                       ring=[]
                    },
-    {ok, NewState} = join_existing_cluster(InitialState),
-    {ok, NewState}.
+    {Resp, State01} = start_cluster_if_needed(InitialState),
+    {ok, State02} = join_existing_cluster(State01),
+    {ok, State02}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -138,20 +140,31 @@ code_change(_OldVsn, State, _Extra) ->
 %% Description: Look for any existing servers in the cluster, try to join them
 %%--------------------------------------------------------------------
 join_existing_cluster(State) ->
-    Servers = get_existing_servers(),
+    Servers = stoplight_misc:get_existing_servers(stoplight),
     stoplight_misc:connect_to_servers(Servers),
     ?TRACE("servers", Servers),
     {ok, State}.
 
-get_existing_servers() ->
-    case application:get_env(stoplight, servers) of
-    {ok, Servers}  -> 
-        [ #noderef{name=Name} || Name <- Servers];
-    _ -> []
-    end.
 
-% add the right format to the app file environment variable
-% when boot, check and see if something is in that file
-% if that is yourself, skip it
-% if it is someone else, ping it
-% if you cant access it? fail i guess
+%%--------------------------------------------------------------------
+%% Func: start_cluster_if_needed(State) -> {{ok, yes}, NewState} |
+%%                                         {{ok, no}, NewState}
+%% Description: Start cluster if we need to
+%%--------------------------------------------------------------------
+start_cluster_if_needed(State) ->
+    {_Resp, NewState} = case whereis_name(?SERVER_GLOBAL) -> of
+      undefined ->
+          start_cluster(State);
+      _ ->
+          {no, State}
+    end,
+    {{ok, Resp}, NewState}.
+
+%%--------------------------------------------------------------------
+%% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
+%% Description: Start a new cluster, basically just globally register a pid for
+%% joining
+%%--------------------------------------------------------------------
+start_cluster(State) ->
+    RegisterResp = global:register_name(?SERVER_GLOBAL, self()),
+    {RegisterResp, State}.

@@ -15,12 +15,13 @@ namespace :server do
   1.upto(4) do |i| 
     desc "start server #{i}"
     task "start#{i}" => [:compile, :boot] do
-      existing_server = i > 1 ? " -stoplight servers '#{SERVER}' " : ""
+      existing_server = i > 1 ? " -stoplight servers '[#{SERVER}]' " : ""
       sh %Q{erl -pa #{root}/ebin -pa #{root}/deps/*/ebin  \
               -name "#{server_name}#{i}@#{HOSTNAME}" \
               -s reloader \
-              #{existing_server} \
-              -boot #{base_name} 
+              -boot #{base_name} \
+              #{existing_server} 
+
       }, :verbose => true
     end
   end
@@ -34,8 +35,8 @@ namespace :client do
         erl -pa #{root}/ebin -pa #{root}/deps/*/ebin \
         -name "#{base_name}_client@#{HOSTNAME}" \
         -s reloader \
-        -boot #{server_name}_client  \
-        -stoplight "#{SERVER}"
+        -boot #{base_name}_client  \
+        -stoplight_client servers '[#{SERVER}]'
     }, :verbose => true
         # -stoplight servers '[{#{server_name}_srv1, "#{hostname}"}]'
   end

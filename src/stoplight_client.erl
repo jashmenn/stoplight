@@ -8,8 +8,11 @@
 -export([start/2, stop/1]).
 
 start(_, [])     -> 
-    {ok, ServerNames} = parse_args(),
-    {ok, ServerRefs}  = stoplight_misc:connect_to_servers(ServerNames),
+    % {ok, ServerNames} = parse_args(),
+
+    Servers = stoplight_misc:get_existing_servers(stoplight_client),
+    ?TRACE("servers:", Servers),
+    {ok, ServerRefs}  = stoplight_misc:connect_to_servers(Servers),
 
     {ok, self(), #client_state{ pid=self() }}.
 
