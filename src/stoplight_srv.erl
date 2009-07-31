@@ -57,8 +57,9 @@ init([]) ->
     InitialState = #srv_state{
                       pid=self(),
                       nodename=node(),
-                      ring=[]
+                      ring=[self()]
                    },
+
     {ok, State01} = join_existing_cluster(InitialState),
     {_Resp, State02} = start_cluster_if_needed(State01),
     {ok, State02}.
@@ -108,7 +109,12 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(_Info, State) -> 
+handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
+    ?TRACE("REC'd DOWN. Removing node from list. info was:", Info),
+    {ok, NewState} = remove_pid_from_ring(Pid, State),
+    ?TRACE("NewState is:", NewState),
+    {noreply, NewState};
+handle_info(Info, State) -> 
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -134,14 +140,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Give that node the list of the other sigma servers
 %%--------------------------------------------------------------------
 handle_node_joining(OtherNode, State) ->
-    Exists = lists:any(fun(Elem) -> Elem =:= OtherNode end, State#srv_state.ring),
-    NewRing = case Exists of
-        true ->
-          State#srv_state.ring;
-        false ->
-          [OtherNode|State#srv_state.ring]
-    end,
-    NewState  = State#srv_state{ring=NewRing},
+    {ok, NewState} = add_node_if_needed(OtherNode, State),
     {ok, NewState}.
 
 %%--------------------------------------------------------------------
@@ -195,3 +194,27 @@ start_cluster(State) ->
     ?TRACE("Starting server:", ?SERVER_GLOBAL),
     RegisterResp = global:register_name(?SERVER_GLOBAL, self()),
     {RegisterResp, State}.
+
+
+add_node_if_needed(OtherNode, State) ->
+    OtherPid = OtherNode#srv_state.pid,
+
+    Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#srv_state.ring),
+    NewRing = case Exists of
+        true ->
+          State#srv_state.ring;
+        false ->
+          % monitor that pid
+          erlang:monitor(process, OtherPid),
+          % add the other pid to our ring
+          [OtherPid|State#srv_state.ring]
+    end,
+    NewState  = State#srv_state{ring=NewRing},
+    {ok, NewState}.
+
+remove_pid_from_ring(OtherPid, State) ->
+    NewRing = lists:delete(OtherPid, State#srv_state.ring),
+    NewState  = State#srv_state{ring=NewRing},
+    {ok, NewState}.
+
+%%% add in hooks to remove the pid if the process dies
