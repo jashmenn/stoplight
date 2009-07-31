@@ -9,7 +9,6 @@
 -behaviour(gen_server).
 -include_lib("../include/defines.hrl").
 
-% -export([start_link/2]).
 -export([start_link/2]).
 
 % gen_server callbacks
@@ -50,9 +49,10 @@ start_link(_Type, _Args) ->
 %%--------------------------------------------------------------------
 
 init([]) -> 
-    % ?TRACE(foo, bar),
+    ?TRACE("Starting Stoplight Server", self()),
     {ok, #srv_state{
-                  pid=self()
+                  pid=self(),
+                  ring=[]
               }}.
 
 %%--------------------------------------------------------------------
@@ -114,3 +114,17 @@ terminate(_Reason, _State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
+
+%%--------------------------------------------------------------------
+%% Func: handle_join(OtherNode, State, Extra) -> {{ok, OtherNodes}, NewState}
+%% Description: Called When another node joins the server cluster. 
+%% Give that node the list of the other sigma servers
+%%--------------------------------------------------------------------
+
+%%--------------------------------------------------------------------
+%% Func: handle_leave(OtherNode, State, Extra) -> {ok, NewState}
+%% Description: Called When another node leaves the server cluster. 
+%% Give that node the list of the other sigma servers
+%%--------------------------------------------------------------------
+
+

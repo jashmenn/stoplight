@@ -19,7 +19,8 @@
   }).
 
 -record(srv_state, {
-    pid
+    pid,
+    ring
   }).
 
 -record(client_state, {
