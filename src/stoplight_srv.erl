@@ -38,7 +38,7 @@
 %%--------------------------------------------------------------------
 start_link(_Type, _Args) ->
   io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
-  gen_server:start_link({local, ?SERVER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+  gen_server:start_link({local, stoplight_srv_local}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 %%====================================================================
 %% gen_server callbacks
@@ -60,7 +60,7 @@ init([]) ->
                       ring=[]
                    },
     {ok, State01} = join_existing_cluster(InitialState),
-    {Resp, State02} = start_cluster_if_needed(State01),
+    {_Resp, State02} = start_cluster_if_needed(State01),
     {ok, State02}.
 
 %%--------------------------------------------------------------------
@@ -72,6 +72,11 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+
+handle_call({join, FromSrv}, _From, State) ->
+    {Reply, NewState} = handle_node_joining(FromSrv, State),
+    ?TRACE("ok", NewState),
+    {reply, Reply, NewState};
 
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
@@ -124,10 +129,20 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %%--------------------------------------------------------------------
-%% Func: handle_join(OtherNode, State, Extra) -> {{ok, OtherNodes}, NewState}
+%% Func: handle_join(OtherNode, State) -> {{ok, OtherNodes}, NewState}
 %% Description: Called When another node joins the server cluster. 
 %% Give that node the list of the other sigma servers
 %%--------------------------------------------------------------------
+handle_node_joining(OtherNode, State) ->
+    Exists = lists:any(fun(Elem) -> Elem =:= OtherNode end, State#srv_state.ring),
+    NewRing = case Exists of
+        true ->
+          State#srv_state.ring;
+        false ->
+          [OtherNode|State#srv_state.ring]
+    end,
+    NewState  = State#srv_state{ring=NewRing},
+    {ok, NewState}.
 
 %%--------------------------------------------------------------------
 %% Func: handle_leave(OtherNode, State, Extra) -> {ok, NewState}
@@ -142,7 +157,18 @@ code_change(_OldVsn, State, _Extra) ->
 join_existing_cluster(State) ->
     Servers = stoplight_misc:get_existing_servers(stoplight),
     stoplight_misc:connect_to_servers(Servers),
-    ?TRACE("servers", Servers),
+    global:sync(), % otherwise we may not see the pid yet
+    case global:whereis_name(?SERVER_GLOBAL) of % join unless we are the main server 
+        undefined ->
+            ?TRACE("existing cluster undefined", undefined),
+            ok;
+        X when X =:= self() ->
+            ?TRACE("we are the cluster, skipping", X),
+            ok;
+        _ ->
+            ?TRACE("joining server...", global:whereis_name(?SERVER_GLOBAL)),
+            gen_server:call({global, ?SERVER_GLOBAL}, {join, State})
+    end,
     {ok, State}.
 
 %%--------------------------------------------------------------------
