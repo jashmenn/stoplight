@@ -15,6 +15,9 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
+% debug
+-compile(export_all).
+
 %% Macros
 -define(SERVER, ?MODULE).
 
@@ -50,10 +53,13 @@ start_link(_Type, _Args) ->
 
 init([]) -> 
     ?TRACE("Starting Stoplight Server", self()),
-    {ok, #srv_state{
-                  pid=self(),
-                  ring=[]
-              }}.
+    InitialState = #srv_state{
+                      pid=self(),
+                      nodename=node(),
+                      ring=[]
+                   },
+    {ok, NewState} = join_existing_cluster(InitialState),
+    {ok, NewState}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -127,4 +133,25 @@ code_change(_OldVsn, State, _Extra) ->
 %% Give that node the list of the other sigma servers
 %%--------------------------------------------------------------------
 
+%%--------------------------------------------------------------------
+%% Func: join_existing_cluster(State) -> {ok, NewState}
+%% Description: Look for any existing servers in the cluster, try to join them
+%%--------------------------------------------------------------------
+join_existing_cluster(State) ->
+    Servers = get_existing_servers(),
+    stoplight_misc:connect_to_servers(Servers),
+    ?TRACE("servers", Servers),
+    {ok, State}.
 
+get_existing_servers() ->
+    case application:get_env(stoplight, servers) of
+    {ok, Servers}  -> 
+        [ #noderef{name=Name} || Name <- Servers];
+    _ -> []
+    end.
+
+% add the right format to the app file environment variable
+% when boot, check and see if something is in that file
+% if that is yourself, skip it
+% if it is someone else, ping it
+% if you cant access it? fail i guess

@@ -3,7 +3,7 @@
         {vsn, "0.1"},
         {modules, [stoplight_client]},
         {env, [
-          {servers,[{"0.0.0.0",8648}]}
+          {servers,[undefined]}
         ]},
         {registered, [stoplight_client]},
         {applications, [kernel, stdlib]},

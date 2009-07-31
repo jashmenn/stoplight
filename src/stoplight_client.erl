@@ -9,7 +9,7 @@
 
 start(_, [])     -> 
     {ok, ServerNames} = parse_args(),
-    {ok, ServerRefs}  = connect_to_servers(ServerNames),
+    {ok, ServerRefs}  = stoplight_misc:connect_to_servers(ServerNames),
 
     {ok, self(), #client_state{ pid=self() }}.
 
@@ -55,18 +55,9 @@ parse_args() ->
     ServerPort    = 8649,
 
     % % add all the servers when we support referencing more
-    ServerDef = #noderef{pidname=ServerPidName, hostname=ServerHostName, port=ServerPort,pidref=list_to_atom(ServerPidName ++ "@" ++ ServerHostName)},
+    % ServerDef = #noderef{pidname=ServerPidName, hostname=ServerHostName, port=ServerPort,pidref=list_to_atom(ServerPidName ++ "@" ++ ServerHostName)},
+    ServerDef = #noderef{name=list_to_atom(ServerPidName ++ "@" ++ ServerHostName)},
     {ok, [ServerDef]}.
-
-connect_to_servers(ServerNames) ->
-   ServerRefs = lists:map(fun(Server) ->
-      ?TRACE("connecting to server: ", Server),
-      #noderef{pidref=PidRef} = Server,
-      pong = net_adm:ping(PidRef)
-    end,
-    ServerNames),
-   {ok, ServerRefs}.
-
 
 
 % get_sasl_error_logger() ->

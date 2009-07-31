@@ -1,4 +1,4 @@
-%% script generated at {2009,7,31} {8,6,58}
+%% script generated at {2009,7,31} {9,42,39}
 {script,
     {"stoplight_client","0.1"},
     [{preLoaded,[erlang,erl_prim_loader,prim_file,prim_inet,init,otp_ring0]},
@@ -150,7 +150,7 @@
                    {registered,[stoplight_client]},
                    {applications,[kernel,stdlib]},
                    {included_applications,[]},
-                   {env,[{servers,[{"0.0.0.0",8648}]}]},
+                   {env,[{servers,[undefined]}]},
                    {start_phases,undefined},
                    {maxT,infinity},
                    {maxP,infinity},
