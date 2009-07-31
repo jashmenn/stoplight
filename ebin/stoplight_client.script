@@ -1,4 +1,4 @@
-%% script generated at {2009,7,31} {10,10,41}
+%% script generated at {2009,7,31} {10,55,20}
 {script,
     {"stoplight_client","0.1"},
     [{preLoaded,[erlang,erl_prim_loader,prim_file,prim_inet,init,otp_ring0]},

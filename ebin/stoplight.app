@@ -6,7 +6,8 @@
           {port, 8648},
           {servers,[undefined]}
         ]},
-        {registered, [stoplight]},
+       % {registered, [stoplight]},
+        {registered, []},
         {applications, [kernel, stdlib]},
         {mod, {stoplight, []}}
 ]}.

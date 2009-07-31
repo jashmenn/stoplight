@@ -59,8 +59,8 @@ init([]) ->
                       nodename=node(),
                       ring=[]
                    },
-    {Resp, State01} = start_cluster_if_needed(InitialState),
-    {ok, State02} = join_existing_cluster(State01),
+    {ok, State01} = join_existing_cluster(InitialState),
+    {Resp, State02} = start_cluster_if_needed(State01),
     {ok, State02}.
 
 %%--------------------------------------------------------------------
@@ -145,14 +145,14 @@ join_existing_cluster(State) ->
     ?TRACE("servers", Servers),
     {ok, State}.
 
-
 %%--------------------------------------------------------------------
 %% Func: start_cluster_if_needed(State) -> {{ok, yes}, NewState} |
 %%                                         {{ok, no}, NewState}
 %% Description: Start cluster if we need to
 %%--------------------------------------------------------------------
 start_cluster_if_needed(State) ->
-    {_Resp, NewState} = case whereis_name(?SERVER_GLOBAL) -> of
+    global:sync(), % otherwise we may not see the pid yet
+    {Resp, NewState} = case global:whereis_name(?SERVER_GLOBAL) of
       undefined ->
           start_cluster(State);
       _ ->
@@ -166,5 +166,6 @@ start_cluster_if_needed(State) ->
 %% joining
 %%--------------------------------------------------------------------
 start_cluster(State) ->
+    ?TRACE("Starting server:", ?SERVER_GLOBAL),
     RegisterResp = global:register_name(?SERVER_GLOBAL, self()),
     {RegisterResp, State}.
