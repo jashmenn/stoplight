@@ -20,7 +20,6 @@
 
 %% Macros
 -define(SERVER, ?MODULE).
-% -define(SERVER, node()).
 
 %%====================================================================
 %% API
@@ -75,9 +74,20 @@ init([]) ->
 %%--------------------------------------------------------------------
 
 handle_call({join, FromSrv}, _From, State) ->
-    {Reply, NewState} = handle_node_joining(FromSrv, State),
-    ?TRACE("ok", NewState),
+    {ok, NewState} = handle_node_joining(FromSrv, State),
+    ?TRACE("join ok", NewState),
+    Reply = {ok, NewState#srv_state.ring},
     {reply, Reply, NewState};
+
+handle_call({joined_announcement, KnownRing}, _From, State) ->
+    {ok, NewState} = handle_node_joined_announcement(KnownRing, State),
+    ?TRACE("rec'd node join announcement", NewState),
+    Reply = {ok, NewState#srv_state.ring},
+    {reply, Reply, NewState};
+
+handle_call({state}, _From, State) ->
+    ?TRACE("state:", State),
+    {reply, ok, State};
 
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
@@ -110,11 +120,11 @@ handle_cast(_Msg, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
-    ?TRACE("REC'd DOWN. Removing node from list. info was:", Info),
+    ?TRACE("received 'DOWN'. Removing node from list. info was:", Info),
     {ok, NewState} = remove_pid_from_ring(Pid, State),
     ?TRACE("NewState is:", NewState),
     {noreply, NewState};
-handle_info(Info, State) -> 
+handle_info(_Info, State) -> 
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -144,6 +154,18 @@ handle_node_joining(OtherNode, State) ->
     {ok, NewState}.
 
 %%--------------------------------------------------------------------
+%% Func: handle_node_joined_announcement(KnownRing, State) -> {ok, NewState}
+%% Description: When a node joins a known server, it then broadcasts to all
+%% other servers that it joined.  % It tells all other servers about the entire
+%% pidlist it received from the known node. This is a check to make sure % that
+%% everytime a node joins all the other nodes know about it as well as every
+%% other node in the cluster.
+%%--------------------------------------------------------------------
+handle_node_joined_announcement(KnownRing, State) ->
+    {ok, NewState} = add_pids_to_ring(KnownRing, State),
+    {ok, NewState}.
+
+%%--------------------------------------------------------------------
 %% Func: handle_leave(OtherNode, State, Extra) -> {ok, NewState}
 %% Description: Called When another node leaves the server cluster. 
 %% Give that node the list of the other sigma servers
@@ -157,7 +179,7 @@ join_existing_cluster(State) ->
     Servers = stoplight_misc:get_existing_servers(stoplight),
     stoplight_misc:connect_to_servers(Servers),
     global:sync(), % otherwise we may not see the pid yet
-    case global:whereis_name(?SERVER_GLOBAL) of % join unless we are the main server 
+    NewState = case global:whereis_name(?SERVER_GLOBAL) of % join unless we are the main server 
         undefined ->
             ?TRACE("existing cluster undefined", undefined),
             ok;
@@ -166,9 +188,18 @@ join_existing_cluster(State) ->
             ok;
         _ ->
             ?TRACE("joining server...", global:whereis_name(?SERVER_GLOBAL)),
-            gen_server:call({global, ?SERVER_GLOBAL}, {join, State})
+            {ok, KnownRing} = gen_server:call({global, ?SERVER_GLOBAL}, {join, State}),
+            {ok, NewInformedState} = add_pids_to_ring(KnownRing, State),
+            broadcast_join_announcement(NewInformedState)
     end,
-    {ok, State}.
+    {ok, NewState}.
+
+broadcast_join_announcement(State) ->
+    NotSelfPids   = lists:delete(self(), State#srv_state.ring),
+    NotGlobalPids = lists:delete(global:whereis_name(?SERVER_GLOBAL), NotSelfPids),
+    % multicall? 
+    [gen_server:call(Pid, {joined_announcement, State#srv_state.ring}) || Pid <- NotGlobalPids],
+    State.
 
 %%--------------------------------------------------------------------
 %% Func: start_cluster_if_needed(State) -> {{ok, yes}, NewState} |
@@ -195,10 +226,17 @@ start_cluster(State) ->
     RegisterResp = global:register_name(?SERVER_GLOBAL, self()),
     {RegisterResp, State}.
 
-
 add_node_if_needed(OtherNode, State) ->
     OtherPid = OtherNode#srv_state.pid,
+    add_pid_to_ring(OtherPid, State).
 
+add_pids_to_ring([Head|OtherPids], State) ->
+    {ok, NewState} = add_pid_to_ring(Head, State),
+    add_pids_to_ring(OtherPids, NewState);
+add_pids_to_ring([], State) ->
+    {ok, State}.
+
+add_pid_to_ring(OtherPid, State) ->
     Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#srv_state.ring),
     NewRing = case Exists of
         true ->
