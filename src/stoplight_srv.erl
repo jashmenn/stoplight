@@ -9,7 +9,7 @@
 -behaviour(gen_server).
 -include_lib("../include/defines.hrl").
 
--export([start_link/2]).
+-export([start_link/2, start_named/1]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -38,6 +38,10 @@
 start_link(_Type, _Args) ->
   io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
   gen_server:start_link({local, stoplight_srv_local}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+
+%% for testing multiple servers
+start_named(Name) ->
+    gen_server:start_link({local, Name}, ?MODULE, [], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -96,8 +100,8 @@ handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
     {reply, todo, State};
 
 handle_call({state}, _From, State) ->
-    ?TRACE("state:", State),
-    {reply, ok, State};
+    ?TRACE("queried state:", State),
+    {reply, {ok, State}, State};
 
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
@@ -204,10 +208,10 @@ join_existing_cluster(State) ->
     NewState = case global:whereis_name(?SERVER_GLOBAL) of % join unless we are the main server 
         undefined ->
             ?TRACE("existing cluster undefined", undefined),
-            ok;
+            State;
         X when X =:= self() ->
             ?TRACE("we are the cluster, skipping", X),
-            ok;
+            State;
         _ ->
             ?TRACE("joining server...", global:whereis_name(?SERVER_GLOBAL)),
             {ok, KnownRing} = gen_server:call({global, ?SERVER_GLOBAL}, {join, State}),

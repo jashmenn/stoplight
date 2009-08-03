@@ -37,3 +37,10 @@ task :compile do
 end
 
 task :default => [:compile]
+
+task :rstakeout do
+    cmd =  %Q{rstakeout -t 1 -v "rake run_tests --trace" '*/**/*.erl'}
+    puts cmd
+    exec cmd
+end
+
