@@ -56,7 +56,9 @@ init([]) ->
     InitialState = #srv_state{
                       pid=self(),
                       nodename=node(),
-                      ring=[self()]
+                      ring=[self()],
+                      reqQs=dict:new(),
+                      owners=dict:new()
                    },
 
     {ok, State01} = join_existing_cluster(InitialState),
@@ -179,16 +181,16 @@ handle_node_joined_announcement(KnownRing, State) ->
 %% Give that node the list of the other sigma servers
 %%--------------------------------------------------------------------
 
-handle_mutex({request, Req}, From, State)
+handle_mutex({request, Req}, From, State) ->
     {reply, todo, State};
 
-handle_mutex({yield, Req}, From, State)
+handle_mutex({yield, Req}, From, State) ->
     {reply, todo, State};
 
-handle_mutex({release, Req}, From, State)
+handle_mutex({release, Req}, From, State) ->
     {reply, todo, State};
 
-handle_mutex({inquiry, Req}, From, State)
+handle_mutex({inquiry, Req}, From, State) ->
     {reply, todo, State}.
 
 %%--------------------------------------------------------------------
@@ -276,16 +278,54 @@ remove_pid_from_ring(OtherPid, State) ->
     {ok, NewState}.
 
 % ---- mutex helpers
-have_previous_request_from_this_client(Req) -> % {true, OtherReq} | {false, null}
+have_previous_request_from_this_client(Req) -> % {true, OtherReq} | false
     todo.
 
 % look at Req.owner, see if it is from our current owner, namespaced by name
-is_request_from_current_owner(Req) -> % {true, CurrentOwner} | {false, null}
-    todo.
+is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, CurrentOwner} | false
+    #req{owner=Owner, name=Name} = Req,
+    case current_owner_for_name(Name, State) of
+        {ok, CurrentOwner} ->
+            #req{owner=CurrentOwnerId} = CurrentOwner,
+            #req{owner=ThisOwnerId}    = Req,
+            case CurrentOwnerId =:= ThisOwnerId of
+                true ->
+                    {true, CurrentOwner};
+                false ->
+                    false
+            end;
+        _ ->
+            false
+    end.
 
 % look at Req.owner, see if we have another request from this same owner in our
 % queue that is namespaced by Req.name. If so, return the OtherReq that is in
 % the queue. 
-is_there_a_request_from_owner_in_the_queue(Req) -> % {true, OtherReq} | {false, null}
-    todo.
+is_there_a_request_from_owner_in_the_queue(Req, State) -> % {true, OtherReq} | false
+    #req{owner=Owner, name=Name} = Req,
+    Q = queue_for_name(Name, State),
+    case Q of 
+        {ok, Queue} ->
+             ReqsForOwner = lists:filter(fun(Elem) ->
+                         #req{owner=ElemOwner} = Elem,
+                         ElemOwner =:= Owner
+                end, 
+             Q),
+             ReqsForOwnerSorted = stoplight_request:sort_by_timestamp(ReqsForOwner),
+             {true, lists:nth(1, ReqsForOwnerSorted)};
+        _ ->
+            false
+    end.
 
+
+
+% checks the current owners list, namespaced by name
+% CurrentOwner = #req
+current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | error
+    #srv_state{owners=Owners} = State, 
+    dict:find(Name, Owners).
+
+% Queue = list() of #req
+queue_for_name(Name, State) -> % {ok, Queue} | error
+    #srv_state{reqQs=ReqQs} = State,
+    dict:find(Name, reqQs).
