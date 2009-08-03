@@ -278,8 +278,13 @@ remove_pid_from_ring(OtherPid, State) ->
     {ok, NewState}.
 
 % ---- mutex helpers
-have_previous_request_from_this_client(Req) -> % {true, OtherReq} | false
-    todo.
+have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
+    case is_request_from_current_owner(Req, State) of
+        {true, CurrentOwner} ->
+            {true, CurrentOwner};
+        _  ->
+            is_there_a_request_from_owner_in_the_queue(Req, State)
+    end.
 
 % look at Req.owner, see if it is from our current owner, namespaced by name
 is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, CurrentOwner} | false

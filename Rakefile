@@ -18,7 +18,8 @@ end
  
 def ebin_dirs
   Dir[File.dirname(__FILE__) + "/ebin"]  +
-  Dir[File.dirname(__FILE__) + "/**/deps/**/ebin"]
+  Dir[File.dirname(__FILE__) + "/**/deps/**/ebin"] +
+  Dir[File.dirname(__FILE__) + "/test/ebin"]
 end
 
 def erl
