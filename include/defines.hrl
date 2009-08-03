@@ -11,12 +11,26 @@
     name
   }).
 
+
+% cowner: the client it accepts, initially nil. 
+% towner: time stamp of cowner, initially nil. 
+% ReqQ: queue storing requests, initially empty. 
+
 -record(srv_state, {
     pid,
     ring,
-    nodename
+    nodename,
+    reqQs, % request queues, namespaced by lock name
+    owners % owners, namespaced by lock name
   }).
 
 -record(client_state, {
     pid
   }).
+
+-record(req, {
+    name,      % lock name
+    owner,     % owner pid
+    timestamp  % timestamp
+ }).
+

@@ -85,6 +85,14 @@ handle_call({joined_announcement, KnownRing}, _From, State) ->
     Reply = {ok, NewState#srv_state.ring},
     {reply, Reply, NewState};
 
+handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
+% if (ci, t') appears in (cowner, towner) or ReqQ then 
+%   if t < t' then skip the rest;  {the message received is an older message} 
+%   if t > t' then Delete(ci, tÕ, ReqQ, cowner, towner); 
+%
+% then handle_mutex from here
+    {reply, todo, State};
+
 handle_call({state}, _From, State) ->
     ?TRACE("state:", State),
     {reply, ok, State};
@@ -171,6 +179,18 @@ handle_node_joined_announcement(KnownRing, State) ->
 %% Give that node the list of the other sigma servers
 %%--------------------------------------------------------------------
 
+handle_mutex({request, Req}, From, State)
+    {reply, todo, State};
+
+handle_mutex({yield, Req}, From, State)
+    {reply, todo, State};
+
+handle_mutex({release, Req}, From, State)
+    {reply, todo, State};
+
+handle_mutex({inquiry, Req}, From, State)
+    {reply, todo, State}.
+
 %%--------------------------------------------------------------------
 %% Func: join_existing_cluster(State) -> {ok, NewState}
 %% Description: Look for any existing servers in the cluster, try to join them
@@ -255,4 +275,17 @@ remove_pid_from_ring(OtherPid, State) ->
     NewState  = State#srv_state{ring=NewRing},
     {ok, NewState}.
 
-%%% add in hooks to remove the pid if the process dies
+% ---- mutex helpers
+have_previous_request_from_this_client(Req) -> % {true, OtherReq} | {false, null}
+    todo.
+
+% look at Req.owner, see if it is from our current owner, namespaced by name
+is_request_from_current_owner(Req) -> % {true, CurrentOwner} | {false, null}
+    todo.
+
+% look at Req.owner, see if we have another request from this same owner in our
+% queue that is namespaced by Req.name. If so, return the OtherReq that is in
+% the queue. 
+is_there_a_request_from_owner_in_the_queue(Req) -> % {true, OtherReq} | {false, null}
+    todo.
+
