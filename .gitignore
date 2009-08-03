@@ -1,4 +1,4 @@
 *.beam
 erl_crash.dump
 html
-.erlang.cookie
+.erlang.cookie.autosession.vim
