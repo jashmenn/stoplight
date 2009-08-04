@@ -79,24 +79,11 @@ init(_Args) ->
 
 handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
     case is_request_stale(Req, State) of
-            true ->
-                {reply, stale, State}; % it is stale, don't give the mutex
-            _ ->
-                handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
-    end.
-
-handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
-    ShouldDelete = have_previous_request_from_this_client(Req, State) andalso 
-                   Req#req.timestamp < OtherReq#req.timestamp,
-
-    {ok, NewState} = case ShouldDelete of
         true ->
-            delete_request(Req, State);
-         _ ->
-            {ok, State}
-    end
-    handle_mutex({Tag, Req}, From State).
-
+            {reply, stale, State}; % it is stale, don't give the mutex
+        _ ->
+            handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
+    end;
 handle_call({state}, _From, State) ->
     ?TRACE("queried state:", State),
     {reply, {ok, State}, State};
@@ -115,6 +102,19 @@ handle_call(_Request, _From, State) ->
 % ...
 % etc.
 
+handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
+    {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
+        {true, OtherReq} ->
+             case Req#req.timestamp < OtherReq#req.timestamp of
+                 true ->
+                     delete_request(Req, State);
+                 _ ->
+                     {ok, State}
+             end;
+         _ ->
+             {ok, State}
+    end,
+    handle_mutex({Tag, Req}, From, State).
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -182,23 +182,8 @@ is_request_stale(Req, State) ->
                     false
             end;
         _ ->
-            false.
+            false
     end.
-
-    % case have_previous_request_from_this_client(Req, State) of
-    %     {true, OtherReq} ->
-    %         case Req#req.timestamp < OtherReq#req.timestamp of 
-    %             true ->
-    %               {reply, todo, State};
-    %              _ ->
-
-    %             end
-    %         end
-    %         todo.
-    %     _ -> 
-    %         todo.
-    % end.
-
 
 % look at Req.owner, see if it is from our current owner, namespaced by name
 is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, CurrentOwner} | false
