@@ -79,10 +79,8 @@ init(_Args) ->
 
 handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
     case is_request_stale(Req, State) of
-        true ->
-            {reply, stale, State}; % it is stale, don't give the mutex
-        _ ->
-            handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
+        true -> {reply, stale, State}; % it is stale, don't give the mutex
+           _ -> handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
     end;
 handle_call({state}, _From, State) ->
     ?TRACE("queried state:", State),
@@ -106,10 +104,8 @@ handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, 
     {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
         {true, OtherReq} ->
              case Req#req.timestamp < OtherReq#req.timestamp of
-                 true ->
-                     delete_request(Req, State);
-                 _ ->
-                     {ok, State}
+                 true -> delete_request(Req, State);
+                    _ -> {ok, State}
              end;
          _ ->
              {ok, State}
@@ -176,10 +172,8 @@ is_request_stale(Req, State) ->
     case have_previous_request_from_this_client(Req, State) of
         {true, OtherReq} ->
             case Req#req.timestamp < OtherReq#req.timestamp of 
-                true ->
-                    true;
-                _ ->
-                    false
+                true -> true;
+                   _ -> false
             end;
         _ ->
             false
@@ -193,10 +187,8 @@ is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, C
             #req{owner=CurrentOwnerId} = CurrentOwner,
             #req{owner=ThisOwnerId}    = Req,
             case CurrentOwnerId =:= ThisOwnerId of
-                true ->
-                    {true, CurrentOwner};
-                false ->
-                    false
+                true  -> {true, CurrentOwner};
+                false -> false
             end;
         _ ->
             false
@@ -242,7 +234,7 @@ queue_for_name(Name, State) -> % {ok, Queue} | error
 %% JoiningPid.
 %%--------------------------------------------------------------------
 handle_join(JoiningPid, Pidlist, State) ->
-    io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+    % io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -254,11 +246,11 @@ handle_join(JoiningPid, Pidlist, State) ->
 %%--------------------------------------------------------------------
 
 handle_node_joined(JoiningPid, Pidlist, State) ->
-    io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+    % io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
     {ok, State}.
 
 handle_leave(LeavingPid, Pidlist, Info, State) ->
-    io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
+    % io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
     {ok, State}.
 
 
