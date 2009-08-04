@@ -4,16 +4,18 @@
 %%% Description : desc
 %%% Created     : 2009-07-30
 %%%-------------------------------------------------------------------
-
 -module(stoplight_srv).
--behaviour(gen_server).
+-behaviour(gen_cluster).
 -include_lib("../include/defines.hrl").
 
--export([start_link/2, start_named/1]).
+-export([start_link/2, start_named/2]).
 
 % gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
+
+% gen_cluster callback
+-export([handle_join/3, handle_node_joined/3, handle_leave/4]).
 
 % debug
 -compile(export_all).
@@ -36,12 +38,12 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(_Type, _Args) ->
-  io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
-  gen_server:start_link({local, stoplight_srv_local}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+    io:format(user, "Got ~p in start_link for ~p~n", [{}, ?MODULE]),
+    gen_cluster:start_link({local, stoplight_srv_local}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 %% for testing multiple servers
-start_named(Name) ->
-    gen_server:start_link({local, Name}, ?MODULE, [], []).
+start_named(Name, Config) ->
+    gen_cluster:start_link({local, Name}, ?MODULE, [Config], []).
 
 %%====================================================================
 %% gen_server callbacks
@@ -55,19 +57,15 @@ start_named(Name) ->
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
 
-init([]) -> 
+init(_Args) -> 
     ?TRACE("Starting Stoplight Server", self()),
     InitialState = #srv_state{
                       pid=self(),
                       nodename=node(),
-                      ring=[self()],
                       reqQs=dict:new(),
                       owners=dict:new()
                    },
-
-    {ok, State01} = join_existing_cluster(InitialState),
-    {_Resp, State02} = start_cluster_if_needed(State01),
-    {ok, State02}.
+    {ok, InitialState}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -79,19 +77,7 @@ init([]) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
-handle_call({join, FromSrv}, _From, State) ->
-    {ok, NewState} = handle_node_joining(FromSrv, State),
-    ?TRACE("join ok", NewState),
-    Reply = {ok, NewState#srv_state.ring},
-    {reply, Reply, NewState};
-
-handle_call({joined_announcement, KnownRing}, _From, State) ->
-    {ok, NewState} = handle_node_joined_announcement(KnownRing, State),
-    ?TRACE("rec'd node join announcement", NewState),
-    Reply = {ok, NewState#srv_state.ring},
-    {reply, Reply, NewState};
-
-handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
+handle_call({mutex, _Tag, Req}, _From, State) when is_record(Req, req) ->
 % if (ci, t') appears in (cowner, towner) or ReqQ then 
 %   if t < t' then skip the rest;  {the message received is an older message} 
 %   if t > t' then Delete(ci, tÕ, ReqQ, cowner, towner); 
@@ -133,11 +119,6 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
-    ?TRACE("received 'DOWN'. Removing node from list. info was:", Info),
-    {ok, NewState} = remove_pid_from_ring(Pid, State),
-    ?TRACE("NewState is:", NewState),
-    {noreply, NewState};
 handle_info(_Info, State) -> 
     {noreply, State}.
 
@@ -158,128 +139,17 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-%%--------------------------------------------------------------------
-%% Func: handle_join(OtherNode, State) -> {{ok, OtherNodes}, NewState}
-%% Description: Called When another node joins the server cluster. 
-%% Give that node the list of the other sigma servers
-%%--------------------------------------------------------------------
-handle_node_joining(OtherNode, State) ->
-    {ok, NewState} = add_node_if_needed(OtherNode, State),
-    {ok, NewState}.
-
-%%--------------------------------------------------------------------
-%% Func: handle_node_joined_announcement(KnownRing, State) -> {ok, NewState}
-%% Description: When a node joins a known server, it then broadcasts to all
-%% other servers that it joined.  % It tells all other servers about the entire
-%% pidlist it received from the known node. This is a check to make sure % that
-%% everytime a node joins all the other nodes know about it as well as every
-%% other node in the cluster.
-%%--------------------------------------------------------------------
-handle_node_joined_announcement(KnownRing, State) ->
-    {ok, NewState} = add_pids_to_ring(KnownRing, State),
-    {ok, NewState}.
-
-%%--------------------------------------------------------------------
-%% Func: handle_leave(OtherNode, State, Extra) -> {ok, NewState}
-%% Description: Called When another node leaves the server cluster. 
-%% Give that node the list of the other sigma servers
-%%--------------------------------------------------------------------
-
-handle_mutex({request, Req}, From, State) ->
+handle_mutex({request, _Req}, _From, State) ->
     {reply, todo, State};
 
-handle_mutex({yield, Req}, From, State) ->
+handle_mutex({yield, _Req}, _From, State) ->
     {reply, todo, State};
 
-handle_mutex({release, Req}, From, State) ->
+handle_mutex({release, _Req}, _From, State) ->
     {reply, todo, State};
 
-handle_mutex({inquiry, Req}, From, State) ->
+handle_mutex({inquiry, _Req}, _From, State) ->
     {reply, todo, State}.
-
-%%--------------------------------------------------------------------
-%% Func: join_existing_cluster(State) -> {ok, NewState}
-%% Description: Look for any existing servers in the cluster, try to join them
-%%--------------------------------------------------------------------
-join_existing_cluster(State) ->
-    Servers = stoplight_misc:get_existing_servers(stoplight),
-    stoplight_misc:connect_to_servers(Servers),
-    global:sync(), % otherwise we may not see the pid yet
-    NewState = case global:whereis_name(?SERVER_GLOBAL) of % join unless we are the main server 
-        undefined ->
-            ?TRACE("existing cluster undefined", undefined),
-            State;
-        X when X =:= self() ->
-            ?TRACE("we are the cluster, skipping", X),
-            State;
-        _ ->
-            ?TRACE("joining server...", global:whereis_name(?SERVER_GLOBAL)),
-            {ok, KnownRing} = gen_server:call({global, ?SERVER_GLOBAL}, {join, State}),
-            {ok, NewInformedState} = add_pids_to_ring(KnownRing, State),
-            broadcast_join_announcement(NewInformedState)
-    end,
-    {ok, NewState}.
-
-broadcast_join_announcement(State) ->
-    NotSelfPids   = lists:delete(self(), State#srv_state.ring),
-    NotGlobalPids = lists:delete(global:whereis_name(?SERVER_GLOBAL), NotSelfPids),
-    % multicall? 
-    [gen_server:call(Pid, {joined_announcement, State#srv_state.ring}) || Pid <- NotGlobalPids],
-    State.
-
-%%--------------------------------------------------------------------
-%% Func: start_cluster_if_needed(State) -> {{ok, yes}, NewState} |
-%%                                         {{ok, no}, NewState}
-%% Description: Start cluster if we need to
-%%--------------------------------------------------------------------
-start_cluster_if_needed(State) ->
-    global:sync(), % otherwise we may not see the pid yet
-    {Resp, NewState} = case global:whereis_name(?SERVER_GLOBAL) of
-      undefined ->
-          start_cluster(State);
-      _ ->
-          {no, State}
-    end,
-    {{ok, Resp}, NewState}.
-
-%%--------------------------------------------------------------------
-%% Func: start_cluster(State) -> {yes, NewState} | {no, NewState}
-%% Description: Start a new cluster, basically just globally register a pid for
-%% joining
-%%--------------------------------------------------------------------
-start_cluster(State) ->
-    ?TRACE("Starting server:", ?SERVER_GLOBAL),
-    RegisterResp = global:register_name(?SERVER_GLOBAL, self()),
-    {RegisterResp, State}.
-
-add_node_if_needed(OtherNode, State) ->
-    OtherPid = OtherNode#srv_state.pid,
-    add_pid_to_ring(OtherPid, State).
-
-add_pids_to_ring([Head|OtherPids], State) ->
-    {ok, NewState} = add_pid_to_ring(Head, State),
-    add_pids_to_ring(OtherPids, NewState);
-add_pids_to_ring([], State) ->
-    {ok, State}.
-
-add_pid_to_ring(OtherPid, State) ->
-    Exists = lists:any(fun(Elem) -> Elem =:= OtherPid end, State#srv_state.ring),
-    NewRing = case Exists of
-        true ->
-          State#srv_state.ring;
-        false ->
-          % monitor that pid
-          erlang:monitor(process, OtherPid),
-          % add the other pid to our ring
-          [OtherPid|State#srv_state.ring]
-    end,
-    NewState  = State#srv_state{ring=NewRing},
-    {ok, NewState}.
-
-remove_pid_from_ring(OtherPid, State) ->
-    NewRing = lists:delete(OtherPid, State#srv_state.ring),
-    NewState  = State#srv_state{ring=NewRing},
-    {ok, NewState}.
 
 % ---- mutex helpers
 have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
@@ -336,3 +206,33 @@ current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | error
 queue_for_name(Name, State) -> % {ok, Queue} | error
     #srv_state{reqQs=ReqQs} = State,
     dict:find(Name, reqQs).
+
+%%--------------------------------------------------------------------
+%% Function: handle_join(JoiningPid, Pidlist, State) -> {ok, State} 
+%%     JoiningPid = pid(),
+%%     Pidlist = list() of pids()
+%% Description: Called whenever a node joins the cluster via this node
+%% directly. JoiningPid is the node that joined. Note that JoiningPid may
+%% join more than once. Pidlist contains all known pids. Pidlist includes
+%% JoiningPid.
+%%--------------------------------------------------------------------
+handle_join(JoiningPid, Pidlist, State) ->
+    io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+    {ok, State}.
+
+%%--------------------------------------------------------------------
+%% Function: handle_node_joined(JoiningPid, Pidlist, State) -> {ok, State} 
+%%     JoiningPid = pid(),
+%%     Pidlist = list() of pids()
+%% Description: Called whenever a node joins the cluster via another node and
+%%     the joining node is simply announcing its presence.
+%%--------------------------------------------------------------------
+
+handle_node_joined(JoiningPid, Pidlist, State) ->
+    io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
+    {ok, State}.
+
+handle_leave(LeavingPid, Pidlist, Info, State) ->
+    io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
+    {ok, State}.
+

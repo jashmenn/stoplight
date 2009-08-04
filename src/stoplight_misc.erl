@@ -28,7 +28,4 @@ get_existing_servers(Namespace) ->
     _ -> []
     end.
 
-
 % get_indexed_pid(Namespace) ->
-
-
