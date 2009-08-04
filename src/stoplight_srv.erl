@@ -149,7 +149,8 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_mutex({request, Req}, From, State) ->
     case is_request_from_current_owner(Req, State) of
-        {true, CurrentOwner} -> {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
+        {true, CurrentOwner} -> 
+            {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
         false -> 
             handle_mutex_request_from_not_owner(Req, From, State)
     end;
@@ -169,7 +170,7 @@ handle_mutex_request_from_not_owner(Req, _From, State) ->
     case current_owner_for_name(Req#req.name, State) of
         undefined -> 
             {ok, NewState} = set_current_owner(Req, State), 
-            OwnerReq = current_owner_for_name_short(Req#req.name, State),
+            OwnerReq = current_owner_for_name_short(Req#req.name, NewState),
             {reply, {response, OwnerReq}, NewState}; % "response" is too general...
         {ok, CurrentOwner} -> 
             case is_there_a_request_from_owner_in_the_queue(Req, State) of
@@ -238,7 +239,7 @@ is_there_a_request_from_owner_in_the_queue(Req, State) -> % {true, OtherReq} | f
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
 current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | undefined
-    #srv_state{owners=Owners} = State, 
+    Owners = State#srv_state.owners,
     case dict:find(Name, Owners) of
         {ok, CurrentOwner} -> {ok, CurrentOwner};
         error              -> undefined

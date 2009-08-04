@@ -46,7 +46,10 @@ stale_req_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
-         ?assert(true =:= true),
+         Req = #req{name=food, owner=self(), timestamp=1},
+         {response, CurrentOwner} = gen_cluster:call(node1, {mutex, request, Req}),
+         ?assertEqual(Req, CurrentOwner), 
+         ?TRACE("owner is", CurrentOwner),
          {ok}
       end
   }.
