@@ -58,7 +58,7 @@ start_named(Name, Config) ->
 %%--------------------------------------------------------------------
 
 init(_Args) -> 
-    ?TRACE("Starting Stoplight Server", self()),
+    % ?TRACE("Starting Stoplight Server", self()),
     InitialState = #srv_state{
                       pid=self(),
                       nodename=node(),
@@ -83,7 +83,7 @@ handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
            _ -> handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
     end;
 handle_call({state}, _From, State) ->
-    ?TRACE("queried state:", State),
+    % ?TRACE("queried state:", State),
     {reply, {ok, State}, State};
 
 handle_call(_Request, _From, State) -> 
@@ -110,7 +110,7 @@ handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, 
          _ ->
              {ok, State}
     end,
-    handle_mutex({Tag, Req}, From, State).
+    handle_mutex({Tag, Req}, From, NewState).
 
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
@@ -147,8 +147,12 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-handle_mutex({request, _Req}, _From, State) ->
-    {reply, todo, State};
+handle_mutex({request, Req}, From, State) ->
+    case is_request_from_current_owner(Req, State) of
+        {true, CurrentOwner} -> {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
+        false -> 
+            handle_mutex_request_from_not_owner(Req, From, State)
+    end;
 
 handle_mutex({yield, _Req}, _From, State) ->
     {reply, todo, State};
@@ -160,6 +164,23 @@ handle_mutex({inquiry, _Req}, _From, State) ->
     {reply, todo, State}.
 
 % ---- mutex helpers
+
+handle_mutex_request_from_not_owner(Req, _From, State) ->
+    case current_owner_for_name(Req#req.name, State) of
+        undefined -> 
+            {ok, NewState} = set_current_owner(Req, State), 
+            OwnerReq = current_owner_for_name_short(Req#req.name, State),
+            {reply, {response, OwnerReq}, NewState}; % "response" is too general...
+        {ok, CurrentOwner} -> 
+            case is_there_a_request_from_owner_in_the_queue(Req, State) of
+                % NOTE: here we're saying that if this owner has ANY other requests in the queue then it can't add any more. I'm not sure if this is true to the algorithm. We may want to change this to say "dont put on the exact same request". Not sure though. 
+                {true, _OtherReqs} -> {reply, {response, CurrentOwner}, State};
+                false -> 
+                    {ok, NewState} = append_request_to_queue(Req, State),
+                    {reply, {response, CurrentOwner}, NewState}
+            end
+    end.
+
 have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
     case is_request_from_current_owner(Req, State) of
         {true, CurrentOwner} ->
@@ -180,8 +201,9 @@ is_request_stale(Req, State) ->
     end.
 
 % look at Req.owner, see if it is from our current owner, namespaced by name
+% TODO shorten this method
 is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, CurrentOwner} | false
-    #req{owner=Owner, name=Name} = Req,
+    #req{owner=_Owner, name=Name} = Req,
     case current_owner_for_name(Name, State) of
         {ok, CurrentOwner} ->
             #req{owner=CurrentOwnerId} = CurrentOwner,
@@ -206,7 +228,7 @@ is_there_a_request_from_owner_in_the_queue(Req, State) -> % {true, OtherReq} | f
                          #req{owner=ElemOwner} = Elem,
                          ElemOwner =:= Owner
                 end, 
-             Q),
+             Queue),
              ReqsForOwnerSorted = stoplight_request:sort_by_timestamp(ReqsForOwner),
              {true, lists:nth(1, ReqsForOwnerSorted)};
         _ ->
@@ -215,14 +237,34 @@ is_there_a_request_from_owner_in_the_queue(Req, State) -> % {true, OtherReq} | f
 
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
-current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | error
+current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | undefined
     #srv_state{owners=Owners} = State, 
-    dict:find(Name, Owners).
+    case dict:find(Name, Owners) of
+        {ok, CurrentOwner} -> {ok, CurrentOwner};
+        error              -> undefined
+    end.
+
+% just give the current owner or undefined. 
+current_owner_for_name_short(Name, State) -> % CurrentOwner | undefined
+    case current_owner_for_name(Name, State) of
+        {ok, CurrentOwner} -> CurrentOwner;
+        Other -> Other
+    end.
 
 % Queue = list() of #req
-queue_for_name(Name, State) -> % {ok, Queue} | error
-    #srv_state{reqQs=ReqQs} = State,
-    dict:find(Name, reqQs).
+queue_for_name(Name, State) -> % {ok, Queue} | undefined
+    #srv_state{reqQs=Q0} = State,
+    case dict:find(Name, Q0) of
+        {ok, Queue} -> {ok, Queue};
+        error       -> undefined
+    end.
+
+queue_for_name_short(Name, State) -> % Queue | undefined
+    case queue_for_name(Name, State) of
+        {ok, Queue} -> Queue;
+        Other -> Other
+    end.
+
 
 %%--------------------------------------------------------------------
 %% Function: handle_join(JoiningPid, Pidlist, State) -> {ok, State} 
@@ -245,15 +287,38 @@ handle_join(JoiningPid, Pidlist, State) ->
 %%     the joining node is simply announcing its presence.
 %%--------------------------------------------------------------------
 
-handle_node_joined(JoiningPid, Pidlist, State) ->
+handle_node_joined(_JoiningPid, _Pidlist, State) ->
     % io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
     {ok, State}.
 
-handle_leave(LeavingPid, Pidlist, Info, State) ->
+handle_leave(_LeavingPid, _Pidlist, _Info, State) ->
     % io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
     {ok, State}.
 
 
-delete_request(Req, State) ->
+delete_request(_Req, State) ->
     %   if t > t' then Delete(ci, tÕ, ReqQ, cowner, towner); 
     {todo, State}.
+
+set_current_owner(Req, State) ->
+    Owners0 = State#srv_state.owners,
+    Owners1 = dict:store(Req#req.name, Req, Owners0), 
+    NewState = State#srv_state{owners=Owners1},
+    {ok, NewState}.
+
+append_request_to_queue(Req, State) ->
+    Q0  = State#srv_state.reqQs,
+    Q1  = dict:append(Req#req.name, Req, Q0),
+    NewState = State#srv_state{reqQs=Q1},
+    {ok, NewState}.
+
+% is_req_owner_in_request_queue(Req, State) ->
+%     ReqO = Req#req.owner,
+%     case queue_for_name(Req#req.name, State) of
+%         {ok, Queue} -> % Queue is full of #req records
+%             lists:any(fun(Elem) ->
+%                         Elem#req.owner =:= ReqO
+%                 end, Queue)
+%         _ -> false
+%     end.
+
