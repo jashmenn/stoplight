@@ -11,7 +11,6 @@
     name
   }).
 
-
 % cowner: the client it accepts, initially nil. 
 % towner: time stamp of cowner, initially nil. 
 % ReqQ: queue storing requests, initially empty. 

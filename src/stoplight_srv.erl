@@ -326,8 +326,6 @@ is_there_a_request_from_owner_in_the_queue(Req, State) -> % {true, OtherReq} | f
             false
     end.
 
-
-
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
 current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | error
