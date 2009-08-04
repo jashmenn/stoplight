@@ -77,13 +77,25 @@ init(_Args) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 
-handle_call({mutex, _Tag, Req}, _From, State) when is_record(Req, req) ->
-% if (ci, t') appears in (cowner, towner) or ReqQ then 
-%   if t < t' then skip the rest;  {the message received is an older message} 
-%   if t > t' then Delete(ci, tÕ, ReqQ, cowner, towner); 
-%
-% then handle_mutex from here
-    {reply, todo, State};
+handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
+    case is_request_stale(Req, State) of
+            true ->
+                {reply, stale, State}; % it is stale, don't give the mutex
+            _ ->
+                handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
+    end.
+
+handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
+    ShouldDelete = have_previous_request_from_this_client(Req, State) andalso 
+                   Req#req.timestamp < OtherReq#req.timestamp,
+
+    {ok, NewState} = case ShouldDelete of
+        true ->
+            delete_request(Req, State);
+         _ ->
+            {ok, State}
+    end
+    handle_mutex({Tag, Req}, From State).
 
 handle_call({state}, _From, State) ->
     ?TRACE("queried state:", State),
@@ -159,6 +171,34 @@ have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
         _  ->
             is_there_a_request_from_owner_in_the_queue(Req, State)
     end.
+
+is_request_stale(Req, State) ->
+    case have_previous_request_from_this_client(Req, State) of
+        {true, OtherReq} ->
+            case Req#req.timestamp < OtherReq#req.timestamp of 
+                true ->
+                    true;
+                _ ->
+                    false
+            end;
+        _ ->
+            false.
+    end.
+
+    % case have_previous_request_from_this_client(Req, State) of
+    %     {true, OtherReq} ->
+    %         case Req#req.timestamp < OtherReq#req.timestamp of 
+    %             true ->
+    %               {reply, todo, State};
+    %              _ ->
+
+    %             end
+    %         end
+    %         todo.
+    %     _ -> 
+    %         todo.
+    % end.
+
 
 % look at Req.owner, see if it is from our current owner, namespaced by name
 is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, CurrentOwner} | false
@@ -236,3 +276,7 @@ handle_leave(LeavingPid, Pidlist, Info, State) ->
     io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
     {ok, State}.
 
+
+delete_request(Req, State) ->
+    %   if t > t' then Delete(ci, tÕ, ReqQ, cowner, towner); 
+    {todo, State}.
