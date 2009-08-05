@@ -4,3 +4,5 @@ html
 .erlang.cookie
 .autosession.vim
 .DS_Store
+tags
+coverage
