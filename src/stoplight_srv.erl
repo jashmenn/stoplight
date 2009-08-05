@@ -171,16 +171,46 @@ handle_mutex({request, Req}, From, State) ->
             handle_mutex_request_from_not_owner(Req, From, State)
     end;
 
-handle_mutex({yield, _Req}, _From, State) ->
-    {reply, todo, State};
-
 handle_mutex({release, Req}, From, State) ->
     handle_mutex_release(Req, From, State);
 
-handle_mutex({inquiry, _Req}, _From, State) ->
-    {reply, todo, State}.
+handle_mutex({yield, Req}, From, State) ->
+    handle_mutex_yield(Req, From, State);
+
+handle_mutex({inquiry, Req}, From, State) ->
+    handle_mutex_inquiry(Req, From, State).
 
 % ---- mutex helpers
+
+handle_mutex_inquiry(Req, From, State) ->
+    case is_request_from_current_owner(Req, State) of
+        {true, CurrentOwner} ->
+            {reply, {undefined}, State};
+        false ->
+            case current_owner_for_name(Req#req.name, State) of
+              {ok, CurrentOwner} -> {reply, {response, CurrentOwner}, State};
+              undefined          -> {reply, {undefined}, State}
+            end
+    end.
+
+handle_mutex_yield(Req, From, State) ->
+    case is_request_the_current_owner_exactly(Req, State) of
+        true ->
+            {ok, State1} = append_request_to_queue(Req, State),
+            {ok, State2} = promote_request_in_queue(Req#req.name, State1),
+            CurrentOwner = current_owner_for_name_short(Req#req.name, State2),
+            {reply, {response, CurrentOwner}, State2};
+        false ->
+            {reply, {undefined}, State}
+    end.
+
+% 37   if (cowner, towner) = (ci, t) then 
+% 38    insert (ci, t) into ReqQ, by predetermined order; 
+% 39    (cowner, towner) := dequeue(ReqQ);   
+% 40    send (RESPONSE, cowner, towner) to cowner; 
+% 41    if cowner ­ ci then send (RESPONSE, cowner, towner) to ci;  
+    
+
 
 handle_mutex_request_from_not_owner(Req, _From, State) ->
     case current_owner_for_name(Req#req.name, State) of
@@ -190,7 +220,13 @@ handle_mutex_request_from_not_owner(Req, _From, State) ->
             {reply, {response, OwnerReq}, NewState}; % "response" is too general...
         {ok, CurrentOwner} -> 
             case is_there_a_request_from_owner_in_the_queue(Req, State) of
-                % NOTE: here we're saying that if this owner has ANY other requests in the queue then it can't add any more. I'm not sure if this is true to the algorithm. We may want to change this to say "dont put on the exact same request". Not sure though. 
+                % NOTE: here we're saying that if this owner has ANY other
+                % requests in the queue then it can't add any more. I'm not
+                % sure if this is true to the algorithm. We may want to change
+                % this to say "dont put on the exact same request". Not sure
+                % though.  Actually, this clause should never be called, right?
+                % b/c if someone calls to put a newer request in the queue then
+                % it should be replaced. todo, verify
                 {true, _OtherReqs} -> {reply, {response, CurrentOwner}, State};
                 false -> 
                     {ok, NewState} = append_request_to_queue(Req, State),
@@ -238,7 +274,7 @@ is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, C
     end.
 
 % checks to see if Req matches the #req in State#srv_state.owners / namespace 
-is_request_the_current_owner_exactly(Req, State) ->
+is_request_the_current_owner_exactly(Req, State) -> % true | false
     case current_owner_for_name(Req#req.name, State)  of
         {ok, CurrentOwner} -> Req =:= CurrentOwner;
         _ -> false
@@ -396,9 +432,6 @@ pop_queue(QName, State) -> % {ok, Request, NewState} |
            {ok, undefined, State} % hmm, silently ignores non-existent request, okay for now
    end.
 
-
-
-
 remove_request_from_queue(Req, State) -> % {ok, RemovedReq, NewState}
     ReqQs = State#srv_state.reqQs,
     Q = queue_for_name(Req#req.name, State),
@@ -418,7 +451,7 @@ set_current_owner(Req, State) -> % {ok, NewState}
     NewState = State#srv_state{owners=Owners1},
     {ok, NewState}.
 
-append_request_to_queue(Req, State) ->
+append_request_to_queue(Req, State) -> % {ok, NewState}
     Q0  = State#srv_state.reqQs,
     Q1  = dict:append(Req#req.name, Req, Q0),
     NewState = State#srv_state{reqQs=Q1},

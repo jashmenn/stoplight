@@ -1,1 +1,4 @@
-Your app description
+Stoplight: distributed mutex server, based on the sigma algorithm.
+
+## Thoughts ##
+Should this be more async?

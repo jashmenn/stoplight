@@ -27,7 +27,7 @@ teardown(Servers) ->
     end, global:registered_names()),
     ok.
 
-node_state_test_not() ->
+node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -124,7 +124,7 @@ mutex_replace_test_not() ->
 
 
 
-mutex_queue_promotion_test_() ->
+mutex_queue_promotion_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -161,6 +161,14 @@ mutex_queue_promotion_test_() ->
       end
   }.
 
+mutex_yield_test_not() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         ?assert(true =:= true),
+         {ok}
+      end
+  }.
 
 mutex_inquiry_test_not() ->
   {
@@ -179,16 +187,6 @@ mutex_request_test_not() ->
          {ok}
       end
   }.
-
-mutex_yield_test_not() ->
-  {
-      setup, fun setup/0, fun teardown/1,
-      fun () ->
-         ?assert(true =:= true),
-         {ok}
-      end
-  }.
-
 
 delete_request_test_not() ->
   {
