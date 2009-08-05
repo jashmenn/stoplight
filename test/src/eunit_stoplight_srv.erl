@@ -42,14 +42,49 @@ node_state_test_() ->
       end
   }.
 
-stale_req_test_() ->
+stale_req_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
-         Req = #req{name=food, owner=self(), timestamp=1},
-         {response, CurrentOwner} = gen_cluster:call(node1, {mutex, request, Req}),
-         ?assertEqual(Req, CurrentOwner), 
-         ?TRACE("owner is", CurrentOwner),
+
+         % generate the initial request
+         Req0 = #req{name=food, owner=self(), timestamp=100},
+         {response, CurrentOwner0} = gen_cluster:call(node1, {mutex, request, Req0}),
+         ?assertEqual(Req0, CurrentOwner0), 
+
+         % make sure we get a stale response and the actual owner
+         Req1 = #req{name=food, owner=self(), timestamp=50},
+         {stale, CurrentOwner1} = gen_cluster:call(node1, {mutex, request, Req1}),
+         ?assertEqual(Req0, CurrentOwner0), 
+
+         % release, test more
+
+         {ok}
+      end
+  }.
+
+mutex_release_test_() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+
+         % generate the initial request
+         Req0 = #req{name=food, owner=self(), timestamp=100},
+         {response, CurrentOwner0} = gen_cluster:call(node1, {mutex, request, Req0}),
+         ?assertEqual(Req0, CurrentOwner0), 
+
+         % release
+         {stale, CurrentOwner1} = gen_cluster:call(node1, {mutex, release, Req0}),
+ 
+         {ok}
+      end
+  }.
+
+mutex_inquiry_test_not() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         ?assert(true =:= true),
          {ok}
       end
   }.
@@ -72,23 +107,6 @@ mutex_yield_test_not() ->
       end
   }.
 
-mutex_release_test_not() ->
-  {
-      setup, fun setup/0, fun teardown/1,
-      fun () ->
-         ?assert(true =:= true),
-         {ok}
-      end
-  }.
-
-mutex_inquiry_test_not() ->
-  {
-      setup, fun setup/0, fun teardown/1,
-      fun () ->
-         ?assert(true =:= true),
-         {ok}
-      end
-  }.
 
 delete_request_test_not() ->
   {
