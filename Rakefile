@@ -1,5 +1,4 @@
 require "skelerl"
-Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}
 
 Rake::TaskManager.class_eval do
   def remove_task(task_name)
@@ -44,3 +43,4 @@ task :rstakeout do
     exec cmd
 end
 
+Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}

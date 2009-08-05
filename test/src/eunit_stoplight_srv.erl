@@ -27,7 +27,7 @@ teardown(Servers) ->
     end, global:registered_names()),
     ok.
 
-node_state_test_() ->
+node_state_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -63,7 +63,7 @@ stale_req_test_not() ->
       end
   }.
 
-mutex_release_test_() ->
+mutex_release_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -73,12 +73,94 @@ mutex_release_test_() ->
          {response, CurrentOwner0} = gen_cluster:call(node1, {mutex, request, Req0}),
          ?assertEqual(Req0, CurrentOwner0), 
 
+         % verify we are the current owner for that name
+         {ok, CurrentOwner2}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(Req0, CurrentOwner2),
+
          % release
-         {stale, CurrentOwner1} = gen_cluster:call(node1, {mutex, release, Req0}),
+         {response, CurrentOwner1} = gen_cluster:call(node1, {mutex, release, Req0}),
+         {ok, CurrentOwner3}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(undefined, CurrentOwner3),
  
          {ok}
       end
   }.
+
+mutex_replace_test_not() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+
+         % generate the initial request
+         Req0 = #req{name=food, owner=self(), timestamp=100},
+         {response, CurrentOwner0} = gen_cluster:call(node1, {mutex, request, Req0}),
+         ?assertEqual(Req0, CurrentOwner0), 
+
+         % verify we are the current owner for that name
+         {ok, CurrentOwner2}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(Req0, CurrentOwner2),
+
+         % generate a replacement request
+         Req1 = #req{name=food, owner=self(), timestamp=101},
+         {response, CurrentOwner3} = gen_cluster:call(node1, {mutex, request, Req1}),
+         ?assertEqual(Req1, CurrentOwner3), 
+
+         % % verify we are the current owner for that name
+         {ok, CurrentOwner4}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(Req1, CurrentOwner4),
+
+         % % release
+         {response, CurrentOwner1} = gen_cluster:call(node1, {mutex, release, Req1}),
+         {ok, CurrentOwner5}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(undefined, CurrentOwner5),
+
+
+         %%%%%%%%%%%%%%
+         % test replacing our current request when our current request is in the queue
+ 
+         {ok}
+      end
+  }.
+
+
+
+mutex_queue_promotion_test_() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         % test having something in the queue, test that it gets promoted when rm'd from the queue
+
+         % generate the initial request
+         Req0 = #req{name=food, owner=self(), timestamp=100},
+         {response, CurrentOwner0} = gen_cluster:call(node1, {mutex, request, Req0}),
+         ?assertEqual(Req0, CurrentOwner0), 
+
+         % verify we are the current owner for that name
+         {ok, CurrentOwner1}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(Req0, CurrentOwner1),
+
+         % generate request from someone else
+         Req1 = #req{name=food, owner=someoneelse, timestamp=110},
+         {response, CurrentOwner2} = gen_cluster:call(node1, {mutex, request, Req1}),
+
+         % but the owner should stay the same
+         ?assertEqual(Req0, CurrentOwner2), 
+
+         % and our request should be in the Queue
+         {ok, Queue} = gen_cluster:call(node1, {queue, food}),
+         ?assertEqual(Req1, hd(Queue)),
+
+         % release
+         {response, CurrentOwner3} = gen_cluster:call(node1, {mutex, release, Req0}),
+         ?assertEqual(Req1, CurrentOwner3),
+
+         {ok, CurrentOwner4}       = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(Req1, CurrentOwner4),
+
+         {ok}
+      end
+  }.
+
 
 mutex_inquiry_test_not() ->
   {

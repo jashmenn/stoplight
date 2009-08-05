@@ -88,6 +88,17 @@ handle_call({state}, _From, State) ->
     % ?TRACE("queried state:", State),
     {reply, {ok, State}, State};
 
+% reply with the current_owner for Name. Do *not* use this as part of the
+% algorithm. This is for test/debugging inspection only. 
+handle_call({current_owner, Name}, _From, State) -> % -> {ok, CurrentOwner}
+    CurrentOwner = current_owner_for_name_short(Name, State),
+    {reply, {ok, CurrentOwner}, State};
+
+% again, for testing/debug only. not part of the algorithm
+handle_call({queue, Name}, _From, State) -> % -> {ok, Queue}
+    Queue = queue_for_name_short(Name, State),
+    {reply, {ok, Queue}, State};
+
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
 
@@ -104,16 +115,17 @@ handle_call(_Request, _From, State) ->
 
 handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
     {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
-        {true, OtherReq} ->
-             case Req#req.timestamp < OtherReq#req.timestamp of
+        {true, OrigReq} ->
+             case Req#req.timestamp > OrigReq#req.timestamp of
                  true -> 
-                     {ok, CurrentOwner, NewState} = delete_request(Req, State),
-                     {ok, NewState};
+                     {ok, _CurrentOwner, State1} = delete_request(OrigReq, State),
+                     {ok, State1};
                     _ -> {ok, State}
              end;
          _ ->
              {ok, State}
     end,
+    ?TRACE("contining on to handle", {Tag, Req}),
     handle_mutex({Tag, Req}, From, NewState).
 
 %%--------------------------------------------------------------------
@@ -153,17 +165,18 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_mutex({request, Req}, From, State) ->
     case is_request_from_current_owner(Req, State) of
-        {true, CurrentOwner} -> 
+        {true, _CurrentOwner} -> 
             {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
         false -> 
+            ?TRACE("not from current owner", val),
             handle_mutex_request_from_not_owner(Req, From, State)
     end;
 
 handle_mutex({yield, _Req}, _From, State) ->
     {reply, todo, State};
 
-handle_mutex({release, Req}, _From, State) ->
-    handle_mutex_release(Req, From, State).
+handle_mutex({release, Req}, From, State) ->
+    handle_mutex_release(Req, From, State);
 
 handle_mutex({inquiry, _Req}, _From, State) ->
     {reply, todo, State}.
@@ -173,10 +186,12 @@ handle_mutex({inquiry, _Req}, _From, State) ->
 handle_mutex_request_from_not_owner(Req, _From, State) ->
     case current_owner_for_name(Req#req.name, State) of
         undefined -> 
+            ?TRACE("current owner undefied", val),
             {ok, NewState} = set_current_owner(Req, State), 
             OwnerReq = current_owner_for_name_short(Req#req.name, NewState),
             {reply, {response, OwnerReq}, NewState}; % "response" is too general...
         {ok, CurrentOwner} -> 
+            ?TRACE("there is a current owner", CurrentOwner),
             case is_there_a_request_from_owner_in_the_queue(Req, State) of
                 % NOTE: here we're saying that if this owner has ANY other requests in the queue then it can't add any more. I'm not sure if this is true to the algorithm. We may want to change this to say "dont put on the exact same request". Not sure though. 
                 {true, _OtherReqs} -> {reply, {response, CurrentOwner}, State};
@@ -186,7 +201,7 @@ handle_mutex_request_from_not_owner(Req, _From, State) ->
             end
     end.
 
-handle_mutex_release(Req, From, State) ->
+handle_mutex_release(Req, _From, State) ->
     {ok, CurrentOwner, NewState} = delete_request(Req, State),
     {reply, {response, CurrentOwner}, NewState}.
     
@@ -230,7 +245,7 @@ is_request_the_current_owner_exactly(Req, State) ->
     case current_owner_for_name(Req#req.name, State)  of
         {ok, CurrentOwner} -> Req =:= CurrentOwner;
         _ -> false
-    end
+    end.
 
 % look at Req.owner, see if we have another request from this same owner in our
 % queue that is namespaced by Req.name. If so, return the OtherReq that is in
@@ -256,14 +271,21 @@ is_this_request_in_the_queue(Req, State) ->
     case Q of
         {ok, Queue} -> lists:any(fun(Elem) -> Elem =:= Req end, Queue);
         _ -> false
-    end
+    end.
 
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
 current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | undefined
     Owners = State#srv_state.owners,
     case dict:find(Name, Owners) of
-        {ok, CurrentOwner} -> {ok, CurrentOwner};
+        {ok, CurrentOwner} -> 
+            OwnerName = CurrentOwner#req.owner,
+            case OwnerName of  % also return undefined if we have an undefined owner in the record
+                undefined -> 
+                    undefined;
+                _ -> 
+                    {ok, CurrentOwner}
+            end;
         error              -> undefined
     end.
 
@@ -304,7 +326,7 @@ queue_for_name_short(Name, State) -> % Queue | undefined
 %% join more than once. Pidlist contains all known pids. Pidlist includes
 %% JoiningPid.
 %%--------------------------------------------------------------------
-handle_join(JoiningPid, Pidlist, State) ->
+handle_join(_JoiningPid, _Pidlist, State) ->
     % io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
     {ok, State}.
 
@@ -326,17 +348,22 @@ handle_leave(_LeavingPid, _Pidlist, _Info, State) ->
 
 
 delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
+    ?TRACE("deleting req", Req),
     case is_request_the_current_owner_exactly(Req, State) of
-        {true, CurrentOwner} -> 
-            case is_queue_empty(Name, State) of 
+        true -> 
+            ?TRACE("request is current owner", Req),
+            case is_queue_empty(Req#req.name, State) of 
                 false ->
+                    ?TRACE("q not empty", val),
                     {ok, NewState} = promote_request_in_queue(Req, State),
+                    CurrentOwner = current_owner_for_name_short(Req#req.name, NewState),
                     {ok, CurrentOwner, NewState};
                 true ->
-                    EmptyReq = empty_request(),
+                    ?TRACE("q empty", val),
+                    EmptyReq = empty_request_named(Req#req.name),
                     {ok, NewState} = set_current_owner(EmptyReq, State),
                     {ok, EmptyReq, NewState}
-            end
+            end;
         false -> 
             CurrentOwner = current_owner_for_name_short(Req#req.name, State),
             case is_this_request_in_the_queue(Req, State) of
@@ -349,7 +376,7 @@ delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
     end.
 
 promote_request_in_queue(Req, State) -> % {ok, NewState}
-    {ok, RemovedReq, State1} = remove_request_from_queue(Req, State),
+    {ok, _RemovedReq, State1} = remove_request_from_queue(Req, State),
     {ok, State2} = set_current_owner(Req, State1),
     {ok, State2}.
 
@@ -357,7 +384,7 @@ remove_request_from_queue(Req, State) -> % {ok, RemovedReq, NewState}
     Q = queue_for_name(Req#req.name, State),
     case Q of
         {ok, Queue} -> 
-           Q1 = lists:delete(Req, Q),
+           Q1 = lists:delete(Req, Queue),
            Q2 = dict:set(Req#req.name, Q1),
            NewState = State#srv_state{reqQs=Q2},
            {ok, Req, NewState};
@@ -387,6 +414,8 @@ append_request_to_queue(Req, State) ->
 %         _ -> false
 %     end.
 
-
 empty_request() ->
     #req{name=undefined, owner=undefined, timestamp=undefined}.
+
+empty_request_named(Name) ->
+    #req{name=Name, owner=undefined, timestamp=undefined}.
