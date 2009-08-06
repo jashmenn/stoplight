@@ -1,3 +1,6 @@
 [submodule "deps/gen_cluster"]
 	path = deps/gen_cluster
 	url = git://github.com/jashmenn/gen_cluster.git
+[submodule "deps/gen_server_mock"]
+	path = deps/gen_server_mock
+	url = git@github.com:jashmenn/gen_server_mock.git
