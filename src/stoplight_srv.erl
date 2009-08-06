@@ -76,14 +76,6 @@ init(_Args) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-
-handle_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
-    case is_request_stale(Req, State) of
-        true -> 
-            CurrentOwner = current_owner_for_name_short(Req#req.name, State),
-            {reply, {stale, CurrentOwner}, State}; % it is stale, don't give the mutex
-           _ -> handle_non_stale_mutex_call({mutex, Tag, Req}, From, State)
-    end;
 handle_call({state}, _From, State) ->
     % ?TRACE("queried state:", State),
     {reply, {ok, State}, State};
@@ -102,38 +94,20 @@ handle_call({queue, Name}, _From, State) -> % -> {ok, Queue}
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
 
-% e.g.
-% handle_call({create_ring}, _From, State) ->
-%     {Reply, NewState} = handle_create_ring(State),
-%     {reply, Reply, NewState};
-%
-% handle_call({join, OtherNode}, _From, State) ->
-%     {Reply, NewState} = handle_join(OtherNode, State),
-%     {reply, Reply, NewState};
-% ...
-% etc.
-
-handle_non_stale_mutex_call({mutex, Tag, Req}, From, State) when is_record(Req, req) ->
-    {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
-        {true, OrigReq} ->
-             case Req#req.timestamp > OrigReq#req.timestamp of
-                 true -> 
-                     {ok, _CurrentOwner, State1} = delete_request(OrigReq, State),
-                     {ok, State1};
-                    _ -> {ok, State}
-             end;
-         _ ->
-             {ok, State}
-    end,
-    ?TRACE("contining on to handle", {Tag, Req}),
-    handle_mutex({Tag, Req}, From, NewState).
-
 %%--------------------------------------------------------------------
 %% Function: handle_cast(Msg, State) -> {noreply, State} |
 %%                                      {noreply, State, Timeout} |
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
+    case is_request_stale(Req, State) of
+        true -> 
+            CurrentOwner = current_owner_for_name_short(Req#req.name, State),
+            % {reply, {stale, CurrentOwner}, State}; % it is stale, don't give the mutex
+            {noreply, State}; % it is stale, don't give the mutex
+           _ -> handle_non_stale_mutex_cast({mutex, Tag, Req}, State)
+    end;
 handle_cast(_Msg, State) -> 
     {noreply, State}.
 
@@ -163,45 +137,35 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-handle_mutex({request, Req}, From, State) ->
-    case is_request_from_current_owner(Req, State) of
-        {true, _CurrentOwner} -> 
-            {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
-        false -> 
-            handle_mutex_request_from_not_owner(Req, From, State)
-    end;
-
-handle_mutex({release, Req}, From, State) ->
-    handle_mutex_release(Req, From, State);
-
-handle_mutex({yield, Req}, From, State) ->
-    handle_mutex_yield(Req, From, State);
-
-handle_mutex({inquiry, Req}, From, State) ->
-    handle_mutex_inquiry(Req, From, State).
-
-% ---- mutex helpers
-
-handle_mutex_inquiry(Req, From, State) ->
+handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
+    {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
+        {true, OrigReq} ->
+    
+handle_mutex_inquiry(Req, State) ->
     case is_request_from_current_owner(Req, State) of
         {true, CurrentOwner} ->
-            {reply, {undefined}, State};
+            % {reply, {undefined}, State};
+            {noreply, State};
         false ->
             case current_owner_for_name(Req#req.name, State) of
-              {ok, CurrentOwner} -> {reply, {response, CurrentOwner}, State};
-              undefined          -> {reply, {undefined}, State}
+              % {ok, CurrentOwner} -> {reply, {response, CurrentOwner}, State};
+              % undefined          -> {reply, {undefined}, State}
+              {ok, CurrentOwner} -> {noreply, State};
+              undefined          -> {noreply, State}
             end
     end.
 
-handle_mutex_yield(Req, From, State) ->
+handle_mutex_yield(Req, State) ->
     case is_request_the_current_owner_exactly(Req, State) of
         true ->
             {ok, State1} = append_request_to_queue(Req, State),
             {ok, State2} = promote_request_in_queue(Req#req.name, State1),
             CurrentOwner = current_owner_for_name_short(Req#req.name, State2),
-            {reply, {response, CurrentOwner}, State2};
+            % {reply, {response, CurrentOwner}, State2};
+            {noreply, State2};
         false ->
-            {reply, {undefined}, State}
+            % {reply, {undefined}, State}
+            {noreply, State}
     end.
 
 % 37   if (cowner, towner) = (ci, t) then 
@@ -212,12 +176,13 @@ handle_mutex_yield(Req, From, State) ->
     
 
 
-handle_mutex_request_from_not_owner(Req, _From, State) ->
+handle_mutex_request_from_not_owner(Req, State) ->
     case current_owner_for_name(Req#req.name, State) of
         undefined -> 
             {ok, NewState} = set_current_owner(Req, State), 
             OwnerReq = current_owner_for_name_short(Req#req.name, NewState),
-            {reply, {response, OwnerReq}, NewState}; % "response" is too general...
+            % {reply, {response, OwnerReq}, NewState}; % "response" is too general...
+            {noreply, NewState}; % "response" is too general...
         {ok, CurrentOwner} -> 
             case is_there_a_request_from_owner_in_the_queue(Req, State) of
                 % NOTE: here we're saying that if this owner has ANY other
@@ -227,16 +192,19 @@ handle_mutex_request_from_not_owner(Req, _From, State) ->
                 % though.  Actually, this clause should never be called, right?
                 % b/c if someone calls to put a newer request in the queue then
                 % it should be replaced. todo, verify
-                {true, _OtherReqs} -> {reply, {response, CurrentOwner}, State};
+                % {true, _OtherReqs} -> {reply, {response, CurrentOwner}, State};
+                {true, _OtherReqs} -> {noreply, State};
                 false -> 
                     {ok, NewState} = append_request_to_queue(Req, State),
-                    {reply, {response, CurrentOwner}, NewState}
+                    % {reply, {response, CurrentOwner}, NewState}
+                    {noreply, NewState}
             end
     end.
 
-handle_mutex_release(Req, _From, State) ->
+handle_mutex_release(Req, State) ->
     {ok, CurrentOwner, NewState} = delete_request(Req, State),
-    {reply, {response, CurrentOwner}, NewState}.
+    % {reply, {response, CurrentOwner}, NewState}.
+    {noreply, NewState}.
     
 have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
     case is_request_from_current_owner(Req, State) of
@@ -260,7 +228,7 @@ is_request_stale(Req, State) ->
 % look at Req.owner, see if it is from our current owner, namespaced by name
 % TODO shorten this method
 is_request_from_current_owner(Req, State) when is_record(Req, req) -> % {true, CurrentOwner} | false
-    #req{owner=_Owner, name=Name} = Req,
+    Name = Req#req.name,
     case current_owner_for_name(Name, State) of
         {ok, CurrentOwner} ->
             #req{owner=CurrentOwnerId} = CurrentOwner,
