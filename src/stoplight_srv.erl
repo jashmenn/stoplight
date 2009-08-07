@@ -27,13 +27,6 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start() -> {ok,Pid} | ignore | {error,Error}
-%% Description: Alias for start_link
-%%--------------------------------------------------------------------
-% start() ->
-%     start_link(?DEFAULT_CONFIG). 
-
-%%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
@@ -137,6 +130,13 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
+%%--------------------------------------------------------------------
+%% gen_cluster req'd callbacks
+%%--------------------------------------------------------------------
+handle_join(_JoiningPid, _Pidlist, State) -> {ok, State}.
+handle_node_joined(_JoiningPid, _Pidlist, State) -> {ok, State}.
+handle_leave(_LeavingPid, _Pidlist, _Info, State) -> {ok, State}.
+
 handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) -> % {noreply, State}
     {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
         {true, OrigReq} ->
@@ -204,8 +204,7 @@ handle_mutex_request_from_not_owner(Req, State) ->
         undefined -> 
             {ok, NewState1} = set_current_owner(Req, State), 
             OwnerReq = current_owner_for_name_short(Req#req.name, NewState1),
-            % {reply, {response, OwnerReq}, NewState}; % "response" is too general...
-            {ok, OwnerReq, NewState1}; % "response" is too general...
+            {ok, OwnerReq, NewState1}; 
         {ok, CurrentOwner} -> 
             case is_there_a_request_from_owner_in_the_queue(Req, State) of
                 % NOTE: here we're saying that if this owner has ANY other
@@ -219,7 +218,6 @@ handle_mutex_request_from_not_owner(Req, State) ->
                 {true, _OtherReqs} -> {ok, CurrentOwner, State};
                 false -> 
                     {ok, NewState1} = append_request_to_queue(Req, State),
-                    % {reply, {response, CurrentOwner}, NewState}
                     {ok, CurrentOwner, NewState1}
             end
     end,
@@ -229,7 +227,6 @@ handle_mutex_request_from_not_owner(Req, State) ->
 
 handle_mutex_release(Req, State) ->
     {ok, CurrentOwner, NewState} = delete_request(Req, State),
-    % {reply, {response, CurrentOwner}, NewState}.
     {noreply, NewState}.
     
 have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
@@ -345,36 +342,6 @@ queue_for_name_short(Name, State) -> % Queue | undefined
     end.
 
 
-%%--------------------------------------------------------------------
-%% Function: handle_join(JoiningPid, Pidlist, State) -> {ok, State} 
-%%     JoiningPid = pid(),
-%%     Pidlist = list() of pids()
-%% Description: Called whenever a node joins the cluster via this node
-%% directly. JoiningPid is the node that joined. Note that JoiningPid may
-%% join more than once. Pidlist contains all known pids. Pidlist includes
-%% JoiningPid.
-%%--------------------------------------------------------------------
-handle_join(_JoiningPid, _Pidlist, State) ->
-    % io:format(user, "~p:~p handle join called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
-    {ok, State}.
-
-%%--------------------------------------------------------------------
-%% Function: handle_node_joined(JoiningPid, Pidlist, State) -> {ok, State} 
-%%     JoiningPid = pid(),
-%%     Pidlist = list() of pids()
-%% Description: Called whenever a node joins the cluster via another node and
-%%     the joining node is simply announcing its presence.
-%%--------------------------------------------------------------------
-
-handle_node_joined(_JoiningPid, _Pidlist, State) ->
-    % io:format(user, "~p:~p handle node_joined called: ~p Pidlist: ~p~n", [?MODULE, ?LINE, JoiningPid, Pidlist]),
-    {ok, State}.
-
-handle_leave(_LeavingPid, _Pidlist, _Info, State) ->
-    % io:format(user, "~p:~p handle leave called: ~p, Info: ~p Pidlist: ~p~n", [?MODULE, ?LINE, LeavingPid, Info, Pidlist]),
-    {ok, State}.
-
-
 delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
     case is_request_the_current_owner_exactly(Req, State) of
         true -> 
@@ -453,18 +420,10 @@ append_request_to_queue(Req, State) -> % {ok, NewState}
     NewState = State#srv_state{reqQs=Q1},
     {ok, NewState}.
 
-% is_req_owner_in_request_queue(Req, State) ->
-%     ReqO = Req#req.owner,
-%     case queue_for_name(Req#req.name, State) of
-%         {ok, Queue} -> % Queue is full of #req records
-%             lists:any(fun(Elem) ->
-%                         Elem#req.owner =:= ReqO
-%                 end, Queue)
-%         _ -> false
-%     end.
-
 empty_request() ->
     #req{name=undefined, owner=undefined, timestamp=undefined}.
 
 empty_request_named(Name) ->
     #req{name=Name, owner=undefined, timestamp=undefined}.
+
+
