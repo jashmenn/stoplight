@@ -137,7 +137,7 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
+handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) -> % {noreply, State}
     {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
         {true, OrigReq} ->
              case Req#req.timestamp > OrigReq#req.timestamp of
@@ -153,10 +153,10 @@ handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) -
     handle_mutex({Tag, Req}, NewState).
 
 
-handle_mutex({request, Req}, State) ->
+handle_mutex({request, Req}, State) -> % {noreply, State}
     case is_request_from_current_owner(Req, State) of
         {true, _CurrentOwner} -> 
-            {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
+            {noreply, State}; % hmm, TODO - maybe just respond with the current owned request?
         false -> 
             handle_mutex_request_from_not_owner(Req, State)
     end;
@@ -206,12 +206,12 @@ handle_mutex_yield(Req, State) ->
 
 
 handle_mutex_request_from_not_owner(Req, State) ->
-    case current_owner_for_name(Req#req.name, State) of
+    {ok, CurrentOwnerReq, NewState} = case current_owner_for_name(Req#req.name, State) of
         undefined -> 
-            {ok, NewState} = set_current_owner(Req, State), 
-            OwnerReq = current_owner_for_name_short(Req#req.name, NewState),
+            {ok, NewState1} = set_current_owner(Req, State), 
+            OwnerReq = current_owner_for_name_short(Req#req.name, NewState1),
             % {reply, {response, OwnerReq}, NewState}; % "response" is too general...
-            {noreply, NewState}; % "response" is too general...
+            {ok, OwnerReq, NewState1}; % "response" is too general...
         {ok, CurrentOwner} -> 
             case is_there_a_request_from_owner_in_the_queue(Req, State) of
                 % NOTE: here we're saying that if this owner has ANY other
@@ -222,13 +222,16 @@ handle_mutex_request_from_not_owner(Req, State) ->
                 % b/c if someone calls to put a newer request in the queue then
                 % it should be replaced. todo, verify
                 % {true, _OtherReqs} -> {reply, {response, CurrentOwner}, State};
-                {true, _OtherReqs} -> {noreply, State};
+                {true, _OtherReqs} -> {ok, CurrentOwner, State};
                 false -> 
-                    {ok, NewState} = append_request_to_queue(Req, State),
+                    {ok, NewState1} = append_request_to_queue(Req, State),
                     % {reply, {response, CurrentOwner}, NewState}
-                    {noreply, NewState}
+                    {ok, CurrentOwner, NewState1}
             end
-    end.
+    end,
+    ReqPid = Req#req.owner,
+    gen_cluster:cast(ReqPid, {mutex, response, CurrentOwnerReq}), 
+    {noreply, NewState}.
 
 handle_mutex_release(Req, State) ->
     {ok, CurrentOwner, NewState} = delete_request(Req, State),
@@ -388,6 +391,12 @@ delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
                     ?TRACE("q not empty", val),
                     {ok, NewState} = promote_request_in_queue(Req#req.name, State),
                     CurrentOwner = current_owner_for_name_short(Req#req.name, NewState),
+                    % if we cast back saying they are the current owner, that
+                    % technically isn't true at this point, bc NewState hasn't
+                    % been delivered up the chain. However, gen_server won't
+                    % handle another call or cast until NewState has taken
+                    % hold, so this is acceptable.
+                    gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
                     {ok, CurrentOwner, NewState};
                 true ->
                     ?TRACE("q empty", val),

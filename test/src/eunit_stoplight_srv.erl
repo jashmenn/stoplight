@@ -27,7 +27,7 @@ teardown(Servers) ->
     end, global:registered_names()),
     ok.
 
-node_state_test_() ->
+node_state_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -46,8 +46,13 @@ stale_req_test_() ->
       setup, fun setup/0, fun teardown/1,
       fun () ->
 
+         {ok, Mock} = gen_server_mock:new(),
+
+         % mock should get a response from node1 because of Req0
+         gen_server_mock:expect_cast(Mock, fun({mutex, response, _Req}, _State) -> ok end),
+
          % generate the initial request
-         Req0 = #req{name=food, owner=self(), timestamp=100},
+         Req0 = #req{name=food, owner=Mock, timestamp=100},
          gen_cluster:cast(node1, {mutex, request, Req0}),
          {ok, CurrentOwner0} = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req0, CurrentOwner0), 
@@ -60,6 +65,7 @@ stale_req_test_() ->
          {ok, CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req0, CurrentOwner1), 
 
+         gen_server_mock:assert_expectations(Mock),
          {ok}
       end
   }.
@@ -90,20 +96,25 @@ mutex_replace_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
+         {ok, Mock} = gen_server_mock:new(),
+
+         % mock should get a response from node1 because of Req0
+         gen_server_mock:expect_cast(Mock,  fun({mutex, response, _Req}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock,  fun({mutex, response, _Req}, _State) -> ok end),
 
          % generate the initial request
-         Req0 = #req{name=food, owner=self(), timestamp=100},
+         Req0 = #req{name=food, owner=Mock, timestamp=100},
          gen_cluster:cast(node1, {mutex, request, Req0}),
 
-         % verify we are the current owner for that name
+         % verify Mock is current owner for that name
          {ok, CurrentOwner2} = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req0, CurrentOwner2),
 
          % generate a replacement request
-         Req1 = #req{name=food, owner=self(), timestamp=101},
+         Req1 = #req{name=food, owner=Mock, timestamp=101},
          gen_cluster:cast(node1, {mutex, request, Req1}),
 
-         % % verify we are the current owner for that name
+         % % verify Mock is current owner for that name
          {ok, CurrentOwner4}       = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req1, CurrentOwner4),
 
@@ -114,6 +125,7 @@ mutex_replace_test_() ->
 
          %%%%%%%%%%%%%%
          % test replacing our current request when our current request is in the queue
+         gen_server_mock:assert_expectations(Mock),
  
          {ok}
       end
@@ -123,18 +135,26 @@ mutex_queue_promotion_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
+         {ok, Mock}  = gen_server_mock:new(),
+         {ok, Mock2} = gen_server_mock:new(),
+         % gen_server_mock:expect_cast(Mock2,  fun({mutex, response, _Req}, _State) -> ok end),
+
          % test having something in the queue, test that it gets promoted when rm'd from the queue
 
          % generate the initial request
-         Req0 = #req{name=food, owner=self(), timestamp=100},
+         Req0 = #req{name=food, owner=Mock, timestamp=100},
+         gen_server_mock:expect_cast(Mock,   fun({mutex, response, Req0}, _State) -> ok end),
          gen_cluster:cast(node1, {mutex, request, Req0}),
 
-         % verify we are the current owner for that name
+         % verify Mock is the current owner for that name
          {ok, CurrentOwner1}       = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req0, CurrentOwner1),
 
          % generate request from someone else
-         Req1 = #req{name=food, owner=someoneelse, timestamp=110},
+         Req1 = #req{name=food, owner=Mock2, timestamp=110},
+
+         % expect that we'll get back Req0, the request shouldn't change b/c our request is taken by someone else
+         gen_server_mock:expect_cast(Mock2,  fun({mutex, response, Req0}, _State) -> ok end),
          gen_cluster:cast(node1, {mutex, request, Req1}),
 
          % but the owner should stay the same
@@ -145,12 +165,17 @@ mutex_queue_promotion_test_() ->
          {ok, Queue} = gen_cluster:call(node1, {queue, food}),
          ?assertEqual(Req1, hd(Queue)),
 
+         % when released, Mock2 should get a response saying that Req0 was released and now Req1 is the current owner
+         gen_server_mock:expect_cast(Mock2,  fun({mutex, response, Req1}, _State) -> ok end),
+
          % release
          gen_cluster:cast(node1, {mutex, release, Req0}),
 
          {ok, CurrentOwner4} = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req1, CurrentOwner4),
 
+         gen_server_mock:assert_expectations(Mock),
+         gen_server_mock:assert_expectations(Mock2),
          {ok}
       end
   }.
