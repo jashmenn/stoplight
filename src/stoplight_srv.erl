@@ -3,6 +3,9 @@
 %%% Author  : nmurray
 %%% Description : desc
 %%% Created     : 2009-07-30
+%%% TODO 
+%%% * crash detection
+%%% * CHECK send owner periodically
 %%%-------------------------------------------------------------------
 -module(stoplight_srv).
 -behaviour(gen_cluster).
@@ -425,5 +428,7 @@ empty_request() ->
 
 empty_request_named(Name) ->
     #req{name=Name, owner=undefined, timestamp=undefined}.
+
+
 
 
