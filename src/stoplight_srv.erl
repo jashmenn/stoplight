@@ -149,7 +149,6 @@ handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) -
          _ ->
              {ok, State}
     end,
-    ?TRACE("contining on to handle", {Tag, Req}),
     handle_mutex({Tag, Req}, NewState).
 
 
@@ -186,17 +185,13 @@ handle_mutex_inquiry(Req, State) ->
 handle_mutex_yield(Req, State) ->
     case is_request_the_current_owner_exactly(Req, State) of
         true ->
-            ?TRACE("yield from owner", val),
             {ok, State1} = append_request_to_queue(Req, State),
             {ok, State2} = promote_request_in_queue(Req#req.name, State1),
             CurrentOwner = current_owner_for_name_short(Req#req.name, State2),
-            ?TRACE("owner is", [CurrentOwner, Req#req.owner]),
             gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
-            ?TRACE("casted to", CurrentOwner#req.owner),
             case CurrentOwner#req.owner =:= Req#req.owner of
                 true -> ok;
                 false -> 
-                    ?TRACE("also casting to", [CurrentOwner#req.owner, Req#req.owner]),
                     gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner})
             end,
             {noreply, State2};
@@ -381,13 +376,10 @@ handle_leave(_LeavingPid, _Pidlist, _Info, State) ->
 
 
 delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
-    ?TRACE("deleting req", Req),
     case is_request_the_current_owner_exactly(Req, State) of
         true -> 
-            ?TRACE("request is current owner", Req),
             case is_queue_empty(Req#req.name, State) of 
                 false ->
-                    ?TRACE("q not empty", val),
                     {ok, NewState} = promote_request_in_queue(Req#req.name, State),
                     CurrentOwner = current_owner_for_name_short(Req#req.name, NewState),
                     % if we cast back saying they are the current owner, that
@@ -398,7 +390,6 @@ delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
                     gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
                     {ok, CurrentOwner, NewState};
                 true ->
-                    ?TRACE("q empty", val),
                     EmptyReq = empty_request_named(Req#req.name),
                     {ok, NewState} = set_current_owner(EmptyReq, State),
                     {ok, EmptyReq, NewState}
