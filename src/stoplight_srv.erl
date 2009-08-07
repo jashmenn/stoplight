@@ -173,13 +173,12 @@ handle_mutex({inquiry, Req}, State) ->
 handle_mutex_inquiry(Req, State) ->
     case is_request_from_current_owner(Req, State) of
         {true, CurrentOwner} ->
-            % {reply, {undefined}, State};
             {noreply, State};
         false ->
             case current_owner_for_name(Req#req.name, State) of
-              % {ok, CurrentOwner} -> {reply, {response, CurrentOwner}, State};
-              % undefined          -> {reply, {undefined}, State}
-              {ok, CurrentOwner} -> {noreply, State};
+              {ok, CurrentOwner} -> 
+                  gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner}),
+                  {noreply, State};
               undefined          -> {noreply, State}
             end
     end.
@@ -187,23 +186,23 @@ handle_mutex_inquiry(Req, State) ->
 handle_mutex_yield(Req, State) ->
     case is_request_the_current_owner_exactly(Req, State) of
         true ->
+            ?TRACE("yield from owner", val),
             {ok, State1} = append_request_to_queue(Req, State),
             {ok, State2} = promote_request_in_queue(Req#req.name, State1),
             CurrentOwner = current_owner_for_name_short(Req#req.name, State2),
-            % {reply, {response, CurrentOwner}, State2};
+            ?TRACE("owner is", [CurrentOwner, Req#req.owner]),
+            gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
+            ?TRACE("casted to", CurrentOwner#req.owner),
+            case CurrentOwner#req.owner =:= Req#req.owner of
+                true -> ok;
+                false -> 
+                    ?TRACE("also casting to", [CurrentOwner#req.owner, Req#req.owner]),
+                    gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner})
+            end,
             {noreply, State2};
         false ->
-            % {reply, {undefined}, State}
             {noreply, State}
     end.
-
-% 37   if (cowner, towner) = (ci, t) then 
-% 38    insert (ci, t) into ReqQ, by predetermined order; 
-% 39    (cowner, towner) := dequeue(ReqQ);   
-% 40    send (RESPONSE, cowner, towner) to cowner; 
-% 41    if cowner ­ ci then send (RESPONSE, cowner, towner) to ci;  
-    
-
 
 handle_mutex_request_from_not_owner(Req, State) ->
     {ok, CurrentOwnerReq, NewState} = case current_owner_for_name(Req#req.name, State) of
