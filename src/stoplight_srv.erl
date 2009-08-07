@@ -103,7 +103,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
     case is_request_stale(Req, State) of
         true -> 
-            CurrentOwner = current_owner_for_name_short(Req#req.name, State),
+            % CurrentOwner = current_owner_for_name_short(Req#req.name, State),
             % {reply, {stale, CurrentOwner}, State}; % it is stale, don't give the mutex
             {noreply, State}; % it is stale, don't give the mutex
            _ -> handle_non_stale_mutex_cast({mutex, Tag, Req}, State)
@@ -140,6 +140,35 @@ code_change(_OldVsn, State, _Extra) ->
 handle_non_stale_mutex_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
     {ok, NewState} = case have_previous_request_from_this_client(Req, State) of
         {true, OrigReq} ->
+             case Req#req.timestamp > OrigReq#req.timestamp of
+                 true -> 
+                     {ok, _CurrentOwner, State1} = delete_request(OrigReq, State),
+                     {ok, State1};
+                 _ -> {ok, State}
+             end;
+         _ ->
+             {ok, State}
+    end,
+    ?TRACE("contining on to handle", {Tag, Req}),
+    handle_mutex({Tag, Req}, NewState).
+
+
+handle_mutex({request, Req}, State) ->
+    case is_request_from_current_owner(Req, State) of
+        {true, _CurrentOwner} -> 
+            {reply, undefined, State}; % hmm, TODO - maybe just respond with the current owned request?
+        false -> 
+            handle_mutex_request_from_not_owner(Req, State)
+    end;
+
+handle_mutex({release, Req}, State) ->
+    handle_mutex_release(Req, State);
+
+handle_mutex({yield, Req}, State) ->
+    handle_mutex_yield(Req, State);
+
+handle_mutex({inquiry, Req}, State) ->
+    handle_mutex_inquiry(Req, State).
     
 handle_mutex_inquiry(Req, State) ->
     case is_request_from_current_owner(Req, State) of
