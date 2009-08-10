@@ -32,7 +32,7 @@ node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
-         {ok, State1} = gen_cluster:call(lobbyist1, {state}),
+         {ok, State1} = gen_cluster:call(lobbyist1, state),
          % ?assert(is_record(State1, state) =:= true),
          % {ok, Plist} = gen_cluster:call(lobbyist, {'$gen_cluster', plist}),
          % ?assertEqual(3, length(Plist)),
@@ -40,4 +40,52 @@ node_state_test_() ->
       end
   }.
 
+node_multicast_request_test_() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         {ok, Mock1} = gen_server_mock:new(),
+         {ok, Mock2} = gen_server_mock:new(),
+         {ok, Mock3} = gen_server_mock:new(),
+         Servers = [Mock1, Mock2, Mock3],
+
+         gen_server_mock:expect_cast(Mock1, fun({mutex, request, _R}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock3, fun({mutex, request, _R}, _State) -> ok end),
+
+         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, self()}]),
+         ok = gen_server:call(LobPid, petition),
+
+         gen_server_mock:assert_expectations(Mock1),
+         gen_server_mock:assert_expectations(Mock2),
+         gen_server_mock:assert_expectations(Mock3),
+         gen_server:cast(LobPid, stop),
+         {ok}
+      end
+  }.
+
+node_responses_test_() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         {ok, Mock1} = gen_server_mock:new(),
+         {ok, Mock2} = gen_server_mock:new(),
+         {ok, Mock3} = gen_server_mock:new(),
+         Servers = [Mock1, Mock2, Mock3],
+
+         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, self()}]),
+
+         % gen_server_mock:expect_cast(Mock1, fun({mutex, request, _R}, _State) -> ok end),
+         % gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
+         % gen_server_mock:expect_cast(Mock3, fun({mutex, request, _R}, _State) -> ok end),
+         % ok = gen_server:call(LobPid, petition),
+
+         gen_server_mock:assert_expectations(Mock1),
+         gen_server_mock:assert_expectations(Mock2),
+         gen_server_mock:assert_expectations(Mock3),
+
+         gen_server:call(LobPid, stop),
+         {ok}
+      end
+  }.
 

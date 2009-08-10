@@ -48,7 +48,7 @@
 
 %% for testing multiple servers
 start_named(Name, Config) ->
-    gen_server:start_link({local, Name}, ?MODULE, Config, []).
+    gen_server:start({local, Name}, ?MODULE, Config, [{debug, [{log_to_file, "/dev/null"}]}]).
 
 %%====================================================================
 %% gen_server callbacks
@@ -89,14 +89,17 @@ init(Args) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
-handle_call({state}, _From, State) ->
+handle_call(state, _From, State) ->
     {reply, {ok, State}, State};
+handle_call(request, _From, State) ->
+    {reply, {ok, State#state.request}, State};
+
 handle_call(petition, _From, State) ->
     handle_petition(State),
     {reply, ok, State};
 handle_call(release, _From, State) ->
     handle_release(State),
-    {stop, finished, State};
+    {stop, normal, State};
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
 
@@ -113,6 +116,9 @@ handle_cast({mutex, response, CurrentOwner, From}, State) ->
 handle_cast({mutex, check, CurrentOwner, From}, State) ->
     {ok, State} = handle_mutex_check(CurrentOwner, From, State),
     {noreply, State};
+
+handle_cast(stop, State) -> 
+    {stop, normal, State};
 
 handle_cast(_Msg, State) -> 
     {noreply, State}.
