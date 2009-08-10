@@ -28,10 +28,6 @@ end).
     owners % owner #reqs, namespaced by lock name
   }).
 
--record(client_state, {
-    pid
-  }).
-
 -record(req, {
     name,      % lock name
     owner,     % owner pid

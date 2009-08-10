@@ -174,12 +174,13 @@ handle_mutex({inquiry, Req}, State) ->
     
 handle_mutex_inquiry(Req, State) ->
     case is_request_from_current_owner(Req, State) of
-        {true, CurrentOwner} ->
+        {true, _CurrentOwner} ->
             {noreply, State};
         false ->
             case current_owner_for_name(Req#req.name, State) of
               {ok, CurrentOwner} -> 
-                  gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner}),
+                  % gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner}),
+                  send_response(Req#req.owner, CurrentOwner),
                   {noreply, State};
               undefined          -> {noreply, State}
             end
@@ -191,11 +192,13 @@ handle_mutex_yield(Req, State) ->
             {ok, State1} = append_request_to_queue(Req, State),
             {ok, State2} = promote_request_in_queue(Req#req.name, State1),
             CurrentOwner = current_owner_for_name_short(Req#req.name, State2),
-            gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
+            % gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
+            send_response(CurrentOwner#req.owner, CurrentOwner),
             case CurrentOwner#req.owner =:= Req#req.owner of
                 true -> ok;
                 false -> 
-                    gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner})
+                    % gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner})
+                    send_response(Req#req.owner, CurrentOwner)
             end,
             {noreply, State2};
         false ->
@@ -225,11 +228,12 @@ handle_mutex_request_from_not_owner(Req, State) ->
             end
     end,
     ReqPid = Req#req.owner,
-    gen_cluster:cast(ReqPid, {mutex, response, CurrentOwnerReq}), 
+    % gen_cluster:cast(ReqPid, {mutex, response, CurrentOwnerReq}), 
+    send_response(ReqPid, CurrentOwnerReq), 
     {noreply, NewState}.
 
 handle_mutex_release(Req, State) ->
-    {ok, CurrentOwner, NewState} = delete_request(Req, State),
+    {ok, _CurrentOwner, NewState} = delete_request(Req, State),
     {noreply, NewState}.
     
 have_previous_request_from_this_client(Req, State) -> % {true, OtherReq} | false
@@ -357,7 +361,8 @@ delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
                     % been delivered up the chain. However, gen_server won't
                     % handle another call or cast until NewState has taken
                     % hold, so this is acceptable.
-                    gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
+                    % gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
+                    send_response(CurrentOwner#req.owner, CurrentOwner),
                     {ok, CurrentOwner, NewState};
                 true ->
                     EmptyReq = empty_request_named(Req#req.name),
@@ -429,6 +434,8 @@ empty_request() ->
 empty_request_named(Name) ->
     #req{name=Name, owner=undefined, timestamp=undefined}.
 
+send_response(Pid, CurrentOwner) ->
+    gen_cluster:cast(Pid, {mutex, response, CurrentOwner, self()}).
 
 
 
