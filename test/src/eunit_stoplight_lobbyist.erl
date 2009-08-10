@@ -11,7 +11,7 @@ setup() ->
     {ok, Servers} = gen_cluster:call(srv1, {'$gen_cluster', plist}),
     ?assertEqual(3, length(Servers)),
 
-    {ok, _} = stoplight_lobbyist:start_named(lobbyist1, [{name, food}, {servers, Servers}]),
+    {ok, _} = stoplight_lobbyist:start_named(lobbyist1, [{name, food}, {servers, Servers}, {client, self()}]),
     [srv1, srv2, srv3, lobbyist1].
 
 teardown(Servers) ->

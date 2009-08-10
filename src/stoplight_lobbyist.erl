@@ -27,7 +27,7 @@
 -compile(export_all).
 
 %% Macros
--record(state, {name, pid, servers, responses, request}).
+-record(state, {name, pid, client, servers, responses, request}).
 
 -define(tupleSearchVal(Key, TupleList), 
     ((fun (K, TL) ->
@@ -65,12 +65,14 @@ start_named(Name, Config) ->
 init(Args) -> 
     Lockname  = ?tupleSearchVal(name, Args),
     Servers   = ?tupleSearchVal(servers, Args),
+    Client    = ?tupleSearchVal(client, Args),
     Responses = responses_init(Servers),
     Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch()},
 
     InitialState = #state{
                       pid=self(),
                       name=Lockname, 
+                      client=Client,
                       request=Request,
                       responses=Responses
                    },
@@ -92,6 +94,9 @@ handle_call({state}, _From, State) ->
 handle_call(petition, _From, State) ->
     handle_petition(State),
     {reply, ok, State};
+handle_call(release, _From, State) ->
+    handle_release(State),
+    {stop, finished, State};
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
 
@@ -102,8 +107,13 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast({mutex, response, CurrentOwner, From}, State) ->
-    {ok, State} = handle_mutex_response(CurrentOwner, From, State),
+    {ok, State} = handle_mutex_cast(CurrentOwner, From, State),
     {noreply, State};
+
+handle_cast({mutex, check, CurrentOwner, From}, State) ->
+    {ok, State} = handle_mutex_check(CurrentOwner, From, State),
+    {noreply, State};
+
 handle_cast(_Msg, State) -> 
     {noreply, State}.
 
@@ -141,11 +151,30 @@ handle_petition(State) ->
     multicast_servers({mutex, request, State#state.request}, State),
     ok.
 
-handle_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
+handle_release(State) ->
+    multicast_servers({mutex, release, State#state.request}, State),
+    ok.
+
+% todo - test what happens when we already have crit and we get another supporting response
+handle_mutex_cast(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
-    todo.
+    case Resp of
+        crit ->
+            Client = State2#state.client,
+            %%% TODO - here send a message to Client saying that you rec'd crit
+            ok;
+        no -> ok
+    end,
+    {ok, State2}.
     
+handle_mutex_check(CurrentOwner, From, State) -> % {ok, NewState}
+    Request = State#state.request,
+    case CurrentOwner#req.timestamp =/= Request#req.timestamp of
+        true  -> gen_cluster:cast(From, {mutex, release, Request});
+        false -> ok
+    end,
+    {ok, State}.
 
 % return a dict where the keys are server pids and values are `undef`
 responses_init(Servers) -> 
