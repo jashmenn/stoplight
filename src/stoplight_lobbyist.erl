@@ -93,6 +93,10 @@ handle_call(state, _From, State) ->
     {reply, {ok, State}, State};
 handle_call(request, _From, State) ->
     {reply, {ok, State#state.request}, State};
+handle_call(responses, _From, State) ->
+    {reply, {ok, State#state.responses}, State};
+handle_call(stop, _From, State) ->
+    {stop, normal, ok, State};
 
 handle_call(petition, _From, State) ->
     handle_petition(State),
@@ -110,15 +114,12 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast({mutex, response, CurrentOwner, From}, State) ->
-    {ok, State} = handle_mutex_cast(CurrentOwner, From, State),
-    {noreply, State};
+    {ok, NewState} = handle_cast_mutex_response(CurrentOwner, From, State),
+    {noreply, NewState};
 
 handle_cast({mutex, check, CurrentOwner, From}, State) ->
     {ok, State} = handle_mutex_check(CurrentOwner, From, State),
     {noreply, State};
-
-handle_cast(stop, State) -> 
-    {stop, normal, State};
 
 handle_cast(_Msg, State) -> 
     {noreply, State}.
@@ -162,7 +163,7 @@ handle_release(State) ->
     ok.
 
 % todo - test what happens when we already have crit and we get another supporting response
-handle_mutex_cast(CurrentOwner, From, State) -> % {ok, NewState}
+handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
     case Resp of
@@ -196,7 +197,12 @@ servers(State) ->
     dict:fetch_keys(State#state.responses).
 
 update_responses_if_needed(CurrentOwner, From, State) -> % {ok, NewState}
-    {ok, State2} = case response_is_not_our_request(CurrentOwner, State) andalso
+    ?TRACE("updating responses", val),
+    ?TRACE("resonse", have_different_response_from_this_server(From, CurrentOwner, State)),
+    ?TRACE("owner not us", response_owner_is_not_us(CurrentOwner, State)),
+    ?TRACE("timestamp", response_timestamp_matches_ours(CurrentOwner, State)),
+ 
+    {ok, State2} = case have_different_response_from_this_server(From, CurrentOwner, State) andalso
                 (response_owner_is_not_us(CurrentOwner, State) orelse 
                  response_timestamp_matches_ours(CurrentOwner, State)) of
         true  -> add_server_response(CurrentOwner, From, State);
@@ -231,8 +237,12 @@ lobby_for_more_support(_CurrentOwner, _From, State) -> % {no, NewState}
     NewState = State#state{responses=R1},
     {no, NewState}.
 
-response_is_not_our_request(CurrentOwner, State) -> % bool()
-    CurrentOwner =/= State#state.request.
+have_different_response_from_this_server(From, CurrentOwner, State) -> % bool()
+    Responses = State#state.responses,
+    case dict:find(From, Responses) of
+        {ok, Response} -> Response =/= CurrentOwner;
+        error -> false
+    end.
 
 response_owner_is_not_us(CurrentOwner, State) -> % bool()
     Request = State#state.request,

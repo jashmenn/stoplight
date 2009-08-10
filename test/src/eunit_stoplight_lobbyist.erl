@@ -59,7 +59,9 @@ node_multicast_request_test_() ->
          gen_server_mock:assert_expectations(Mock1),
          gen_server_mock:assert_expectations(Mock2),
          gen_server_mock:assert_expectations(Mock3),
-         gen_server:cast(LobPid, stop),
+
+         gen_server:call(LobPid, stop),
+         gen_server_mock:stop([Mock1, Mock2, Mock3]),
          {ok}
       end
   }.
@@ -73,7 +75,16 @@ node_responses_test_() ->
          {ok, Mock3} = gen_server_mock:new(),
          Servers = [Mock1, Mock2, Mock3],
 
-         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, self()}]),
+         {ok, Lob} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, self()}]),
+         {ok, R0} = gen_server:call(Lob, request),
+
+         % respond with support 
+         gen_server:cast(Lob, {mutex, response, R0, Mock1}),
+
+         % verify we have support from that server 
+         {ok, Resps0} = gen_server:call(Lob, responses),
+         ?TRACE("Resps", Resps0),
+         {ok, R0} = dict:find(Mock1, Resps0),
 
          % gen_server_mock:expect_cast(Mock1, fun({mutex, request, _R}, _State) -> ok end),
          % gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
@@ -84,7 +95,8 @@ node_responses_test_() ->
          gen_server_mock:assert_expectations(Mock2),
          gen_server_mock:assert_expectations(Mock3),
 
-         gen_server:call(LobPid, stop),
+         gen_server:call(Lob, stop),
+         gen_server_mock:stop([Mock1, Mock2, Mock3]),
          {ok}
       end
   }.
