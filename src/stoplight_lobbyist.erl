@@ -66,13 +66,13 @@ init(Args) ->
     Lockname  = ?tupleSearchVal(name, Args),
     Servers   = ?tupleSearchVal(servers, Args),
     Responses = responses_init(Servers),
-    Request   = #req{name=Lockname, owner=self(), timestamp=unix_seconds_since_epoch()},
+    Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch()},
 
     InitialState = #state{
                       pid=self(),
                       name=Lockname, 
                       request=Request,
-                      responses=[]
+                      responses=Responses
                    },
     {ok, InitialState}.
 
@@ -101,8 +101,8 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast({mutex, response, CurrentOwner}, State) ->
-    {ok, State} = handle_mutex_response(CurrentOwner, State),
+handle_cast({mutex, response, CurrentOwner, From}, State) ->
+    {ok, State} = handle_mutex_response(CurrentOwner, From, State),
     {noreply, State};
 handle_cast(_Msg, State) -> 
     {noreply, State}.
@@ -141,9 +141,9 @@ handle_petition(State) ->
     multicast_servers({mutex, request, State#state.request}, State),
     ok.
 
-handle_mutex_response(CurrentOwner, State) -> % {ok, NewState}
-    % {ok, State1} = update_responses_if_needed(CurrentOwner, State).
-    % todo
+handle_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
+    {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
+    {Resp, State2} = try_for_lock(CurrentOwner, From, State), 
     todo.
     
 
@@ -154,16 +154,100 @@ responses_init([H|T], D0) ->
     responses_init(T, dict:store(H, undef, D0));
 responses_init([], D0) -> D0.
 
-
 multicast_servers(Msg, State) ->
     [ gen_cluster:cast(Server, Msg) || Server <- servers(State) ].
 
 servers(State) ->
     dict:fetch_keys(State#state.responses).
 
-% should be mv'd to utils
-% use unix epoch rather than erlang
-unix_seconds_since_epoch() ->
-    LocalDateTime = calendar:datetime_to_gregorian_seconds({date(),time()}),
-    UnixEpoch = calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}),
-    LocalDateTime - UnixEpoch.
+update_responses_if_needed(CurrentOwner, From, State) -> % {ok, NewState}
+    {ok, State2} = case response_is_not_our_request(CurrentOwner, State) andalso
+                (response_owner_is_not_us(CurrentOwner, State) orelse 
+                 response_timestamp_matches_ours(CurrentOwner, State)) of
+        true  -> {ok, State1} = add_server_response(CurrentOwner, From, State);
+        false -> {ok, State}
+        end,
+    {ok, State2}.
+
+try_for_lock(CurrentOwner, From, State) -> % {crit, NewState} | {no, NewState}
+    {Resp, NewState} = case enough_responses_received(CurrentOwner, State) of
+        true -> 
+            case enough_servers_support_our_request(State) of
+                true -> {crit, State} ; % you get the lock! Congratulations!
+                false -> lobby_for_more_support(CurrentOwner, From, State)
+            end;
+        false -> {no, State}
+        end,
+    {Resp, NewState}.
+
+lobby_for_more_support(CurrentOwner, From, State) -> % {no, NewState}
+    Request = State#state.request,
+    R0 = State#state.responses,
+    R1 = dict:map( 
+        fun(ServerPid, Response) -> 
+           if
+               Response#req.owner =:= Request#req.owner       -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
+               Request#req.timestamp > Response#req.timestamp -> gen_cluster:cast(ServerPid, {mutex, request, Request});
+               true                                           -> gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
+           end,
+           undef % undef this response
+        end,
+        R0),
+    NewState = State#state{responses=R1},
+    {no, NewState}.
+
+response_is_not_our_request(CurrentOwner, State) -> % bool()
+    CurrentOwner =/= State#state.request.
+
+response_owner_is_not_us(CurrentOwner, State) -> % bool()
+    Request = State#state.request,
+    CurrentOwner#req.owner =/= Request#req.owner.
+
+response_timestamp_matches_ours(CurrentOwner, State) -> % bool()
+    Request = State#state.request,
+    CurrentOwner#req.timestamp =:= Request#req.timestamp.
+
+add_server_response(CurrentOwner, From, State) -> % {ok, NewState}
+    R0 = State#state.responses,
+    R1 = dict:store(From, CurrentOwner, R0),
+    NewState = State#state{responses=R1},
+    {ok, NewState}.
+
+enough_responses_received(CurrentOwner, State) -> % bool()
+    number_of_responses(State) >= quorum_threshold(State).
+
+quorum_threshold(State) -> % int()
+    Responses = State#state.responses,
+    Servers = dict:fetch_keys(Responses),
+    NumServers = length(Servers),
+    stoplight_util:ceiling( ( 2 * NumServers ) / 3 ).
+
+% returns int() count of the number of defined responses 
+number_of_responses(State) -> % int()
+    Responses = State#state.responses,
+    dict:fold( 
+        fun(Key, Value, AccIn) -> 
+            case Value =:= undef of
+                true -> AccIn;
+                false -> AccIn + 1
+            end
+        end,
+        0, 
+        Responses).
+
+enough_servers_support_our_request(State) -> % bool()
+    number_of_servers_that_support_our_request(State) >= quorum_threshold(State).
+
+number_of_servers_that_support_our_request(State) -> % int()
+    Request = State#state.request,
+    Responses = State#state.responses,
+    dict:fold( 
+        fun(_ServerPid, Response, AccIn) -> 
+            case Response =:= Request of
+                true -> AccIn + 1;
+                false -> AccIn
+            end
+        end,
+        0, 
+        Responses).
+
