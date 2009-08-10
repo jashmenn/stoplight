@@ -143,7 +143,7 @@ handle_petition(State) ->
 
 handle_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
-    {Resp, State2} = try_for_lock(CurrentOwner, From, State), 
+    {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
     todo.
     
 
@@ -164,7 +164,7 @@ update_responses_if_needed(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State2} = case response_is_not_our_request(CurrentOwner, State) andalso
                 (response_owner_is_not_us(CurrentOwner, State) orelse 
                  response_timestamp_matches_ours(CurrentOwner, State)) of
-        true  -> {ok, State1} = add_server_response(CurrentOwner, From, State);
+        true  -> add_server_response(CurrentOwner, From, State);
         false -> {ok, State}
         end,
     {ok, State2}.
@@ -180,7 +180,7 @@ try_for_lock(CurrentOwner, From, State) -> % {crit, NewState} | {no, NewState}
         end,
     {Resp, NewState}.
 
-lobby_for_more_support(CurrentOwner, From, State) -> % {no, NewState}
+lobby_for_more_support(_CurrentOwner, _From, State) -> % {no, NewState}
     Request = State#state.request,
     R0 = State#state.responses,
     R1 = dict:map( 
@@ -213,7 +213,7 @@ add_server_response(CurrentOwner, From, State) -> % {ok, NewState}
     NewState = State#state{responses=R1},
     {ok, NewState}.
 
-enough_responses_received(CurrentOwner, State) -> % bool()
+enough_responses_received(_CurrentOwner, State) -> % bool()
     number_of_responses(State) >= quorum_threshold(State).
 
 quorum_threshold(State) -> % int()
@@ -226,7 +226,7 @@ quorum_threshold(State) -> % int()
 number_of_responses(State) -> % int()
     Responses = State#state.responses,
     dict:fold( 
-        fun(Key, Value, AccIn) -> 
+        fun(_ServerPid, Value, AccIn) -> 
             case Value =:= undef of
                 true -> AccIn;
                 false -> AccIn + 1
