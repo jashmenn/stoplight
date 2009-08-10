@@ -197,11 +197,6 @@ servers(State) ->
     dict:fetch_keys(State#state.responses).
 
 update_responses_if_needed(CurrentOwner, From, State) -> % {ok, NewState}
-    ?TRACE("updating responses", val),
-    ?TRACE("resonse", have_different_response_from_this_server(From, CurrentOwner, State)),
-    ?TRACE("owner not us", response_owner_is_not_us(CurrentOwner, State)),
-    ?TRACE("timestamp", response_timestamp_matches_ours(CurrentOwner, State)),
- 
     {ok, State2} = case have_different_response_from_this_server(From, CurrentOwner, State) andalso
                 (response_owner_is_not_us(CurrentOwner, State) orelse 
                  response_timestamp_matches_ours(CurrentOwner, State)) of

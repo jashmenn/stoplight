@@ -56,10 +56,7 @@ node_multicast_request_test_() ->
          {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, self()}]),
          ok = gen_server:call(LobPid, petition),
 
-         gen_server_mock:assert_expectations(Mock1),
-         gen_server_mock:assert_expectations(Mock2),
-         gen_server_mock:assert_expectations(Mock3),
-
+         gen_server_mock:assert_expectations([Mock1, Mock2, Mock3]),
          gen_server:call(LobPid, stop),
          gen_server_mock:stop([Mock1, Mock2, Mock3]),
          {ok}
@@ -91,10 +88,7 @@ node_responses_test_() ->
          % gen_server_mock:expect_cast(Mock3, fun({mutex, request, _R}, _State) -> ok end),
          % ok = gen_server:call(LobPid, petition),
 
-         gen_server_mock:assert_expectations(Mock1),
-         gen_server_mock:assert_expectations(Mock2),
-         gen_server_mock:assert_expectations(Mock3),
-
+         gen_server_mock:assert_expectations([Mock1, Mock2, Mock3]),
          gen_server:call(Lob, stop),
          gen_server_mock:stop([Mock1, Mock2, Mock3]),
          {ok}
