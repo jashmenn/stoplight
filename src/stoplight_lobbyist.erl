@@ -164,12 +164,13 @@ handle_release(State) ->
 
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
+    ?TRACE("mutex resp", [self(), From]),
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
     case Resp of
         crit ->
             Client = State2#state.client,
-            %%% TODO - here send a message to Client saying that you rec'd crit
+            Client ! {crit, State#state.request, self()},
             ok;
         no -> ok
     end,
@@ -221,10 +222,16 @@ lobby_for_more_support(_CurrentOwner, _From, State) -> % {no, NewState}
     R0 = State#state.responses,
     R1 = dict:map( 
         fun(ServerPid, Response) -> 
-           if
-               Response#req.owner =:= Request#req.owner       -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
-               Request#req.timestamp > Response#req.timestamp -> gen_cluster:cast(ServerPid, {mutex, request, Request});
-               true                                           -> gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
+           case have_response_from_server(ServerPid, State) of
+               true ->
+                   if
+                       Response#req.owner =:= Request#req.owner       -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
+                       % TODO - this line is wrong, needs to be a better comparison function, 
+                       Request#req.timestamp < Response#req.timestamp -> gen_cluster:cast(ServerPid, {mutex, request, Request});
+                       true                                           -> gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
+                   end;
+               false ->
+                   false % do nothing
            end,
            undef % undef this response
         end,
@@ -236,6 +243,17 @@ have_different_response_from_this_server(From, CurrentOwner, State) -> % bool()
     Responses = State#state.responses,
     case dict:find(From, Responses) of
         {ok, Response} -> Response =/= CurrentOwner;
+        error -> false
+    end.
+
+have_response_from_server(ServerPid, State) -> % bool()
+    Responses = State#state.responses,
+    case dict:find(ServerPid, Responses) of
+        {ok, Response} -> 
+            case Response of
+                undef -> false;
+                _ -> true
+            end;
         error -> false
     end.
 
