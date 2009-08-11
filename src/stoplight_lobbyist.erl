@@ -175,6 +175,18 @@ handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
     end,
     {ok, State2}.
     
+% The server periodically sends a check for the current request it supports. If
+% somehow our RELEASE message wasn't delivered and we've moved on to a new
+% timestamp, then we need to send a RELEASE to that server.
+% 
+% Here's the thing, in our setup we only use the lobbyist for one request. The
+% timestamp is set only once, and the process is shutdown after that request is
+% handled. That means this process shouldn't ever get conflicting timestamps in
+% our setup.
+%
+% This check is left in here for algorithm completeness. It is worth ensuring
+% that this does not break something fundamental in the algorithm.
+
 handle_mutex_check(CurrentOwner, From, State) -> % {ok, NewState}
     Request = State#state.request,
     case CurrentOwner#req.timestamp =/= Request#req.timestamp of

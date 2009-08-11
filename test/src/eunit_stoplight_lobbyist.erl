@@ -92,6 +92,15 @@ node_responses_get_crit_test_() ->
              gen_server_mock:expect_cast(ServerPid, fun({mutex, release, Request}, _State) when Request =:= R0 -> ok end)
          end, Servers),
 
+         % check normally
+         gen_server:cast(Lob, {mutex, check, R0, Mock1}),
+
+         % check with the wrong timestamp, expect release
+         R1 = R0#req{timestamp=0},
+         gen_server_mock:expect_cast(Mock2, fun({mutex, release, Request}, _State) when Request =:= R0 -> ok end),
+         gen_server:cast(Lob, {mutex, check, R1, Mock2}),
+
+         % release the lock
          ok = gen_server:call(Lob, release),
 
          gen_server_mock:assert_expectations([Client|Servers]),
