@@ -164,7 +164,6 @@ handle_release(State) ->
 
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
-    ?TRACE("mutex resp", [self(), From]),
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
     case Resp of
@@ -224,11 +223,12 @@ lobby_for_more_support(_CurrentOwner, _From, State) -> % {no, NewState}
         fun(ServerPid, Response) -> 
            case have_response_from_server(ServerPid, State) of
                true ->
+                   RequestLt = request_lt(Request, Response),
+                   % ?TRACE("Server, RequestLt", [ServerPid, RequestLt, Request, Response]),
                    if
-                       Response#req.owner =:= Request#req.owner       -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
-                       % TODO - this line is wrong, needs to be a better comparison function, 
-                       Request#req.timestamp < Response#req.timestamp -> gen_cluster:cast(ServerPid, {mutex, request, Request});
-                       true                                           -> gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
+                       Response#req.owner =:= Request#req.owner -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
+                       RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request});
+                       true                                     -> gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
                    end;
                false ->
                    false % do nothing
@@ -309,3 +309,7 @@ number_of_servers_that_support_our_request(State) -> % int()
         0, 
         Responses).
 
+
+% TODO - need a tiebreaker based on client ID
+request_lt(Request, OtherRequest) -> % bool()
+     Request#req.timestamp < OtherRequest#req.timestamp.

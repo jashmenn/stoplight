@@ -28,7 +28,7 @@ teardown(Servers) ->
     end, global:registered_names()),
     ok.
 
-node_state_test_not() ->
+node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -40,7 +40,7 @@ node_state_test_not() ->
       end
   }.
 
-node_multicast_request_test_not() ->
+node_multicast_request_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -63,7 +63,7 @@ node_multicast_request_test_not() ->
       end
   }.
 
-node_responses_get_crit_test_not() ->
+node_responses_get_crit_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -98,10 +98,11 @@ node_responses_dont_get_crit_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
-         Servers = gen_server_mock:new(3),
-         [Mock1, Mock2, Mock3] = Servers,
+         Servers = gen_server_mock:new(5),
+         [Mock1, Mock2, Mock3, Mock4, Mock5] = Servers,
 
          {ok, Client} = gen_server_mock:new(),
+         % ?TRACE("self()|Client|Servers", [self(),Client|Servers]),
 
          {ok, Lob1} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}]),
          {ok, R0} = gen_server:call(Lob1, request),
@@ -109,15 +110,21 @@ node_responses_dont_get_crit_test_() ->
          {ok, Lob2} = stoplight_lobbyist:start_named(lobbyist3, [{name, cats}, {servers, Servers}, {client, Client}]),
          {ok, R1} = gen_server:call(Lob2, request),
 
-         % expect inquiry
-         gen_server_mock:expect_cast(Mock1, fun({mutex, inquiry, Request}, _State) -> ok end),
-         gen_server_mock:expect_cast(Mock2, fun({mutex, inquiry, Request}, _State) -> ok end),
+         R2 = R0#req{owner=self(), timestamp=9999999999}, % fake req with way newer timestamp
 
-         % gen_server_mock:expect_info(Client, fun({crit, Request, _From}, _State) -> ok end),
+         % expect inquiry
+         gen_server_mock:expect_cast(Mock1, fun({mutex, yield,   Request}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock2, fun({mutex, request, Request}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock3, fun({mutex, inquiry, Request}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock4, fun({mutex, inquiry, Request}, _State) -> ok end),
+
+         % respond with support
+         gen_server:cast(Lob1, {mutex, response, R0, Mock1}),
+         gen_server:cast(Lob1, {mutex, response, R2, Mock2}),
 
          % respond with supporting someone else 
-         gen_server:cast(Lob1, {mutex, response, R1, Mock1}),
-         gen_server:cast(Lob1, {mutex, response, R1, Mock2}),
+         gen_server:cast(Lob1, {mutex, response, R1, Mock3}),
+         gen_server:cast(Lob1, {mutex, response, R1, Mock4}),
 
          % % verify we have support from that server 
          % {ok, Resps0} = gen_server:call(Lob, responses),
