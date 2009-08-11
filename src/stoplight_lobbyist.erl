@@ -236,7 +236,6 @@ lobby_for_more_support(_CurrentOwner, _From, State) -> % {no, NewState}
            case have_response_from_server(ServerPid, State) of
                true ->
                    RequestLt = request_lt(Request, Response),
-                   % ?TRACE("Server, RequestLt", [ServerPid, RequestLt, Request, Response]),
                    if
                        Response#req.owner =:= Request#req.owner -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
                        RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request});

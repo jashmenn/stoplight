@@ -33,9 +33,6 @@ node_state_test_() ->
       setup, fun setup/0, fun teardown/1,
       fun () ->
          {ok, State1} = gen_cluster:call(lobbyist1, state),
-         % ?assert(is_record(State1, state) =:= true),
-         % {ok, Plist} = gen_cluster:call(lobbyist, {'$gen_cluster', plist}),
-         % ?assertEqual(3, length(Plist)),
          {ok}
       end
   }.
@@ -104,7 +101,6 @@ node_responses_get_crit_test_() ->
          ok = gen_server:call(Lob, release),
 
          gen_server_mock:assert_expectations([Client|Servers]),
-         % gen_server:call(Lob, stop),
          gen_server_mock:stop([Client|Servers]),
          {ok}
       end
@@ -118,7 +114,6 @@ node_responses_dont_get_crit_test_() ->
          [Mock1, Mock2, Mock3, Mock4, Mock5] = Servers,
 
          {ok, Client} = gen_server_mock:new(),
-         % ?TRACE("self()|Client|Servers", [self(),Client|Servers]),
 
          {ok, Lob1} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}]),
          {ok, R0} = gen_server:call(Lob1, request),
@@ -142,13 +137,8 @@ node_responses_dont_get_crit_test_() ->
          gen_server:cast(Lob1, {mutex, response, R1, Mock3}),
          gen_server:cast(Lob1, {mutex, response, R1, Mock4}),
 
-         % % verify we have support from that server 
-         % {ok, Resps0} = gen_server:call(Lob, responses),
-         % ?assertEqual({ok, R0}, dict:find(Mock1, Resps0)),
-         % ?assertEqual({ok, R0}, dict:find(Mock2, Resps0)),
-
+         % sync
          gen_server:call(Lob1, state),
-
          gen_server_mock:assert_expectations([Client|Servers]),
          gen_server:call(Lob1, stop),
          gen_server:call(Lob2, stop),
