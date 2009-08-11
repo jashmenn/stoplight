@@ -103,7 +103,7 @@ handle_call(petition, _From, State) ->
     {reply, ok, State};
 handle_call(release, _From, State) ->
     handle_release(State),
-    {stop, normal, State};
+    {stop, normal, ok, State};
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
 

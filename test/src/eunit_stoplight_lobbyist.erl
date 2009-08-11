@@ -87,8 +87,15 @@ node_responses_get_crit_test_() ->
          ?assertEqual({ok, R0}, dict:find(Mock1, Resps0)),
          ?assertEqual({ok, R0}, dict:find(Mock2, Resps0)),
 
+         % expect releases
+         lists:map(fun(ServerPid) ->
+             gen_server_mock:expect_cast(ServerPid, fun({mutex, release, Request}, _State) when Request =:= R0 -> ok end)
+         end, Servers),
+
+         ok = gen_server:call(Lob, release),
+
          gen_server_mock:assert_expectations([Client|Servers]),
-         gen_server:call(Lob, stop),
+         % gen_server:call(Lob, stop),
          gen_server_mock:stop([Client|Servers]),
          {ok}
       end
@@ -113,10 +120,10 @@ node_responses_dont_get_crit_test_() ->
          R2 = R0#req{owner=self(), timestamp=9999999999}, % fake req with way newer timestamp
 
          % expect inquiry
-         gen_server_mock:expect_cast(Mock1, fun({mutex, yield,   Request}, _State) -> ok end),
-         gen_server_mock:expect_cast(Mock2, fun({mutex, request, Request}, _State) -> ok end),
-         gen_server_mock:expect_cast(Mock3, fun({mutex, inquiry, Request}, _State) -> ok end),
-         gen_server_mock:expect_cast(Mock4, fun({mutex, inquiry, Request}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock1, fun({mutex, yield,   _R}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock3, fun({mutex, inquiry, _R}, _State) -> ok end),
+         gen_server_mock:expect_cast(Mock4, fun({mutex, inquiry, _R}, _State) -> ok end),
 
          % respond with support
          gen_server:cast(Lob1, {mutex, response, R0, Mock1}),
