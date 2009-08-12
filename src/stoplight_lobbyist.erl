@@ -171,12 +171,14 @@ handle_release(State) ->
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
+    Client = State2#state.client,
     case Resp of
         crit ->
-            Client = State2#state.client,
             Client ! {crit, State#state.request, self()},
             ok;
-        no -> ok
+        no -> 
+            % Client ! {no, State#state.request, self()},
+            ok
     end,
     {ok, State2}.
     
