@@ -28,7 +28,7 @@ teardown(Servers) ->
     end, global:registered_names()),
     ok.
 
-node_state_test_not() ->
+node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -65,7 +65,7 @@ node_multicast_request_test_() ->
       end
   }.
 
-node_responses_get_crit_test_not() ->
+node_responses_get_crit_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -111,7 +111,7 @@ node_responses_get_crit_test_not() ->
       end
   }.
 
-node_responses_dont_get_crit_test_not() ->
+node_responses_dont_get_crit_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->

@@ -4,12 +4,14 @@
 %%% Created     : 2009-08-07
 %%% Description : 
 %%% 
-%%%  Lobbyist petitions the servers on behalf of the clients. This
-%%%  allows us to have multiple lobbyists working asynchronously with the
-%%%  servers but the client can work with the user synchronously
+%%%  Lobbyist petitions the servers on behalf of the clients. This allows us to
+%%%  have multiple lobbyists working asynchronously with the servers but the
+%%%  client can work with the user synchronously
 %%%
 %%%  Each lobbyist is dedicated to getting one (and only one) specific request.
 %%%
+%%%  TODO - needs to be linked to the servers for the duration of the
+%%%  interaction
 %%%-------------------------------------------------------------------
 
 %% Stoplight lobbyist
@@ -46,7 +48,7 @@
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start(Config) ->
-   gen_server:start(undef, ?MODULE, Config, _GenServerOpts=[]).
+   gen_server:start(?MODULE, Config, _GenServerOpts=[]).
 
 %% for testing multiple servers
 start_named(Name, Config) ->
