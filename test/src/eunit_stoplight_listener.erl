@@ -2,24 +2,15 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/defines.hrl").
+-include_lib("../include/stoplight_eunit_helpers.hrl").
 
 setup() ->
     {ok, Node1Pid} = stoplight_listener:start_link([], []),
     [stoplight_listener].
 
 teardown(Servers) ->
-    lists:map(fun(Pname) -> 
-        Pid = whereis(Pname),
-        gen_server:cast(Pid, stop), 
-        unregister(Pname)
-     end, Servers),
-
-    lists:map(fun(Pname) -> 
-        Pid = global:whereis_name(Pname),
-        gen_server:cast(Pid, stop), 
-        global:unregister_name(Pname)
-    end, global:registered_names()),
- 
+    ?stop_and_unregister_servers(Servers),
+    ?stop_and_unregister_globals,
     ok.
 
 node_state_test_() ->
