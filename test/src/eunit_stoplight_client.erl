@@ -6,22 +6,20 @@
 
 setup() ->
     {ok, Node1Pid}  = stoplight_srv:start_named(stoplight_srv_local, {seed, undefined}),
-    {ok, _Node2Pid} = stoplight_srv:start_named(node2, {seed, Node1Pid}),
-    {ok, _Node3Pid} = stoplight_srv:start_named(node3, {seed, Node1Pid}),
+    {ok, Node2Pid} = stoplight_srv:start_named(node2, {seed, Node1Pid}),
+    {ok, Node3Pid} = stoplight_srv:start_named(node3, {seed, Node1Pid}),
 
     {ok, ListenerPid} = stoplight_listener:start_link([], []),
     ?assert(is_pid(ListenerPid)),
 
-% erlang:monitor(process,Pid),
-% erlang:trace(Node1Pid,true,[send,call,{tracer,self()}]),
-% erlang:trace_pattern({gen_server,loop,'_'},true,[local]),
+    ttb:tracer(node(), [{file,"trace/ttb"}]),
 
-    ttb:tracer(),
-    ttb:p(ListenerPid, [call,send]),
-    % MS1 = dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
-    MS1 = [{'_',[],[{return_trace},{message,{caller}}]}],
-    ttb:tp(gen_server, call, MS1),
+    lists:map(fun(Pid) ->
+       ttb:p(Pid, [call,send])
+    end, [ListenerPid, Node1Pid, Node2Pid, Node3Pid]),
 
+    MS1 = [{'_',[],[{return_trace},{message,{caller}}]}], % dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
+    ttb:tpl(gen_server, loop, MS1),
 
     [stoplight_listener, stoplight_srv_local, node2, node3].
 
@@ -30,8 +28,11 @@ teardown(Servers) ->
     ?stop_and_unregister_servers(Servers),
     ?stop_and_unregister_globals,
 
-    ttb:format("nonode@nohost-ttb"),
-    ttb:format("nonode@nohost-ttb", [{handler, et}]),
+    % ttb:format(atom_to_list(node()) ++ "-ttb"),
+    % ttb:format(atom_to_list(node()) ++ "-ttb", [{handler, et}]),
+    ttb:format("trace"),
+    % ttb:format("trace", [{handler, et}]),
+ 
     ok.
 
 node_state_test_() ->
@@ -43,6 +44,7 @@ node_state_test_() ->
          {ok, State} = gen_server:call(stoplight_listener, state),
 
          {crit, Lobbyist} = stoplight_client:lock(tree),
+         register(tree_lobbyist, Lobbyist),
 
          Parent = self(),
 
@@ -58,7 +60,7 @@ node_state_test_() ->
              {Pid, done} -> 
                  ?TRACE("rec'd my message!", val),
                  ok
-         after 5000 -> timeout
+         after 2000 -> timeout
          end,
 
 
