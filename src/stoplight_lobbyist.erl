@@ -43,8 +43,8 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-% start_link(_Type, _Args) ->
-%     gen_server:start_link({local, stoplight_srv_local}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+start(Config) ->
+   gen_server:start(undef, ?MODULE, Config, _GenServerOpts=[]).
 
 %% for testing multiple servers
 start_named(Name, Config) ->
@@ -64,8 +64,8 @@ start_named(Name, Config) ->
 
 init(Args) -> 
     Lockname  = ?tupleSearchVal(name, Args),
-    Servers   = ?tupleSearchVal(servers, Args),
     Client    = ?tupleSearchVal(client, Args),
+    Servers   = ?tupleSearchVal(servers, Args), % todo, get the servers another way
     Responses = responses_init(Servers),
     Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch()},
 

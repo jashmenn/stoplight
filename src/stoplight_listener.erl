@@ -1,12 +1,12 @@
 %%%-------------------------------------------------------------------
-%%% File    : stoplight_client.erl
+%%% File    : stoplight_listener.erl
 %%% Author  : Nate Murray <nmurray@attinteractive>
-%%% Description : desc
-%%% Created     : 2009-08-07
+%%% Description : 
+%%% Created     : 2009-08-12
 %%%-------------------------------------------------------------------
 
-%% Stoplight client
--module(stoplight_client).
+%% Stoplight listener
+-module(stoplight_listener).
 -include_lib("../include/defines.hrl").
 -behaviour(gen_server).
 
@@ -20,17 +20,14 @@
 -compile(export_all).
 
 %% Macros
--record(state, {pid, timestamp, servers, responses}).
+-record(state, {pid}).
 
-%%====================================================================
-%% API
-%%====================================================================
 %%--------------------------------------------------------------------
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
 start_link(_Type, _Args) ->
-    gen_cluster:start_link({local, stoplight_srv_local}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+    gen_cluster:start_link({local, stoplight_listener}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 %% for testing multiple servers
 start_named(Name, Config) ->
@@ -49,12 +46,7 @@ start_named(Name, Config) ->
 %%--------------------------------------------------------------------
 
 init(_Args) -> 
-    InitialState = #state{
-                      pid=self(),
-                      timestamp=0,
-                      servers=[],
-                      responses=dict:new()
-                   },
+    InitialState = #state{pid=self()},
     {ok, InitialState}.
 
 %%--------------------------------------------------------------------
@@ -70,52 +62,16 @@ handle_call(state, _From, State) ->
     {reply, {ok, State}, State};
 
 handle_call({try_mutex, Name}, From, State) ->
-    {Response, NewState} = handle_try_mutex(Name, From, State),
-    {reply, Response, NewState};
+    Pid = spawn(stoplight_lobbyist, start_named, [[{name, Name}, {client, From}]]),
+    {reply, {ok, Pid}, State};
 
 handle_call(_Request, _From, State) -> 
     {reply, okay, State}.
 
-%%--------------------------------------------------------------------
-%% Function: handle_cast(Msg, State) -> {noreply, State} |
-%%                                      {noreply, State, Timeout} |
-%%                                      {stop, Reason, State}
-%% Description: Handling cast messages
-%%--------------------------------------------------------------------
-handle_cast(_Msg, State) -> 
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: handle_info(Info, State) -> {noreply, State} |
-%%                                       {noreply, State, Timeout} |
-%%                                       {stop, Reason, State}
-%% Description: Handling all non call/cast messages
-%%--------------------------------------------------------------------
-handle_info(_Info, State) -> 
-    {noreply, State}.
-
-%%--------------------------------------------------------------------
-%% Function: terminate(Reason, State) -> void()
-%% Description: This function is called by a gen_server when it is about to
-%% terminate. It should be the opposite of Module:init/1 and do any necessary
-%% cleaning up. When it returns, the gen_server terminates with Reason.
-%% The return value is ignored.
-%%--------------------------------------------------------------------
-terminate(_Reason, _State) -> 
-    ok.
-
-%%--------------------------------------------------------------------
-%% Func: code_change(OldVsn, State, Extra) -> {ok, NewState}
-%% Description: Convert process state when code is changed
-%%--------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) -> 
-    {ok, State}.
-
-handel_try_mutex(Name, From, State) ->
-    todo.
-
-%% interface (thrift or whatever) calls try -> on client. client needs to, at
-%% the same time, pass this off to another process as well as block the caller 
+handle_cast(_Msg, State) -> {noreply, State}.
+handle_info(_Info, State) -> {noreply, State}.
+terminate(_Reason, _State) -> ok.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% where we're at: http://www.trapexit.org/Building_a_Non-blocking_TCP_server_using_OTP_principles
 %% write a non-blocking listener. stoplight_interface_sup,
