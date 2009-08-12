@@ -81,6 +81,7 @@ init(Args) ->
                       request=Request,
                       responses=Responses
                    },
+    % ?TRACE("starting new lobbyist", InitialState),
     {ok, InitialState}.
 
 
@@ -170,8 +171,15 @@ handle_release(State) ->
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
+    % ?TRACE("updated resp from ", [CurrentOwner, From, State1]),
+
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
+    % ?TRACE("try for lock", [Resp, State2]),
+
     Client = State2#state.client,
+    % ?TRACE("client is", Client),
+    % ?TRACE("pid?", is_pid(Client)),
+
     case Resp of
         crit ->
             Client ! {crit, State#state.request, self()},

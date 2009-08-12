@@ -18,12 +18,16 @@
 -record(state, {pid}).
 
 start_link(_Type, _Args) ->
-    gen_server:start_link(?STOPLIGHT_LISTENER, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+    gen_server:start_link({local, ?STOPLIGHT_LISTENER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
 init(_Args) -> {ok, #state{pid=self()}}.
 
 handle_call({try_mutex, Name}, From, State) ->
-    {ok, Pid} = stoplight_lobbyist:start([{name, Name}, {client, From}]),
+    {ClientPid, _Tag} = From,
+    {ok, Pid} = stoplight_lobbyist:start([{name, Name}, {client, ClientPid}]),
+    spawn(fun() ->
+       ok = gen_server:call(Pid, petition)
+    end),
     {reply, {ok, Pid}, State};
 
 handle_call(state, _From, State)    -> {reply, {ok, State}, State};

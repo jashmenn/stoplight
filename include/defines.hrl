@@ -11,7 +11,7 @@ end).
 -define (NTRACE(X, M), io:format(user, "NTRACE ~p:~p ~p ~p ~p ~p ~p~n", [?MODULE, ?LINE, ?SERVER_MODULE:registered_name(), node(), self(), X, M])).
 -define (RECONNECT_TIMEOUT, 10000).
 -define (DEFAULT_CONFIG,  []).
--define (STOPLIGHT_LISTENER,  {local, stoplight_listener}).
+-define (STOPLIGHT_LISTENER,  stoplight_listener).
 
 -record(noderef, {
     name

@@ -17,3 +17,11 @@
                 global:unregister_name(Pname)
             end, global:registered_names())
       end)())).
+
+-define(sleep(T),
+    ((fun () ->
+        receive 
+        after T -> 
+                true 
+        end 
+      end)())).
