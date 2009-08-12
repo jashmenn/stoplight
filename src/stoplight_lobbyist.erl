@@ -36,6 +36,8 @@
       end)(Key, TupleList))
 ).
 
+-define(STOPLIGHT_SRV_LOCAL, stoplight_srv_local).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -65,7 +67,8 @@ start_named(Name, Config) ->
 init(Args) -> 
     Lockname  = ?tupleSearchVal(name, Args),
     Client    = ?tupleSearchVal(client, Args),
-    Servers   = ?tupleSearchVal(servers, Args), % todo, get the servers another way
+    Servers   = get_servers(Args),
+
     Responses = responses_init(Servers),
     Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch()},
 
@@ -320,6 +323,13 @@ number_of_servers_that_support_our_request(State) -> % int()
         0, 
         Responses).
 
+get_servers(Args) -> % []
+  case lists:keymember(servers, 1, Args) of
+    true  -> ?tupleSearchVal(servers, Args);
+    false -> 
+      {ok, Plist} = gen_cluster:plist(?STOPLIGHT_SRV_LOCAL),
+      Plist
+  end.
 
 % TODO - need a tiebreaker based on client ID
 request_lt(Request, OtherRequest) -> % bool()

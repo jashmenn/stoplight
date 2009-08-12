@@ -28,7 +28,7 @@ teardown(Servers) ->
     end, global:registered_names()),
     ok.
 
-node_state_test_() ->
+node_state_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -46,21 +46,26 @@ node_multicast_request_test_() ->
          {ok, Mock3} = gen_server_mock:new(),
          Servers = [Mock1, Mock2, Mock3],
 
+         % register Mock1 as our hook server
+         register(stoplight_srv_local, Mock1),
+         gen_server_mock:expect_call(Mock1, fun({'$gen_cluster', plist}, _From, State) -> {ok, {ok, [Mock1, Mock2, Mock3]}, State} end),
+
          gen_server_mock:expect_cast(Mock1, fun({mutex, request, _R}, _State) -> ok end),
          gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
          gen_server_mock:expect_cast(Mock3, fun({mutex, request, _R}, _State) -> ok end),
 
-         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, self()}]),
+         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {client, self()}]),
          ok = gen_server:call(LobPid, petition),
 
          gen_server_mock:assert_expectations([Mock1, Mock2, Mock3]),
          gen_server:call(LobPid, stop),
          gen_server_mock:stop([Mock1, Mock2, Mock3]),
+         unregister(stoplight_srv_local),
          {ok}
       end
   }.
 
-node_responses_get_crit_test_() ->
+node_responses_get_crit_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -106,7 +111,7 @@ node_responses_get_crit_test_() ->
       end
   }.
 
-node_responses_dont_get_crit_test_() ->
+node_responses_dont_get_crit_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->

@@ -111,7 +111,7 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) -> 
     {ok, State}.
 
-handel_try_mutex(Name, From, State) ->
+handle_try_mutex(Name, From, State) ->
     todo.
 
 %% interface (thrift or whatever) calls try -> on client. client needs to, at
