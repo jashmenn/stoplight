@@ -1,0 +1,51 @@
+Notes on Sigma Algorithm
+========================
+
+It seems like the client and server get into a continuous loop of INQUIRY and
+RESPONSE whenever another process holds the lock.  
+
+For instance: Let's say client A gets the lock (receives enough support for
+`crit`) and then client B REQUESTs the lock from all servers (line 5). The
+server adds B to the ReqQ and sends (RESPONSE, A) as the current owner (lines
+38-40). 
+
+Client B receives RESPONSEs from `m` servers saying they support A.
+Because they support A, B sends INQUIRY to all servers and then clears out the
+previous response from that server (lines 17-18).
+
+The Server(s) receive INQUIRY from B. Since they have a current owner (A) which
+is not B they send (RESPONSE, A) to B (line 41).
+
+B receives this (RESPONSE, A), updates its resp[j] (line 9), and then proceeds to
+send another INQUIRY to the servers (line 17), resulting in a continuous loop as
+long as A holds the lock.  
+
+If I have this correct, it seems that it generates a lot of noisy traffic when
+B is waiting for the lock. Especially because B is already in the ReqQ and the
+servers will send a (RESPONSE, B) when A sends RELEASE and B is promoted in
+the ReqQ (lines 53-54).
+
+I wonder if it makes sense for B to keep track of the number of failed INQUIRY
+messages and do a random-exponential backoff before sending the next INQUIRY.
+
+Implementation thoughts
+=======================
+
+Have the lobbyist store the number of INQUIRY rounds. 
+
+If you don't have enough support you need to send the appropriate YIELD and
+REQUEST messages as soon as possible. 
+
+However INQUIRY messages need to be held back.  
+The properties we want:
+1) INQUIRY messages held back according to an exponential backoff.    
+2) lobbyist to be non-blocking while this is held off
+3) lobbyist kills the INQUIRY message that is waiting if it receives a RESPONSE saying it is the new owner. (optimization, not needed b/c server wont reply if it is the current owner anyway)
+4) if lobbyist gets into a situation where it needs to send yet another inquiry to the same server, it sees that it already has an inquiry blocking and it skips sending a second one. 
+
+to achive this,
+lobbyist must spawn an INQUIRY pid (IPid) and track that the INQUIRY is in the queue 
+the lobbyist must ignore any INQUIRYs that will be sent that are already in the sending queue 
+the IPid must accept a message to die if lobbyist becomes the new owner, the inquiry is no longer needed
+
+
