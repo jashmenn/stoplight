@@ -26,6 +26,7 @@ handle_call({try_mutex, Name}, From, State) ->
     {ClientPid, _Tag} = From,
     {ok, Pid} = stoplight_lobbyist:start([{name, Name}, {client, ClientPid}]),
     spawn(fun() ->
+       ?enable_tracing,
        ok = gen_server:call(Pid, petition)
     end),
     {reply, {ok, Pid}, State};

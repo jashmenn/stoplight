@@ -294,7 +294,10 @@ is_there_a_request_from_owner_in_the_queue(Req, State) -> % {true, OtherReq} | f
                 end, 
              Queue),
              ReqsForOwnerSorted = stoplight_request:sort_by_timestamp(ReqsForOwner),
-             {true, lists:nth(1, ReqsForOwnerSorted)};
+             case length(ReqsForOwnerSorted) > 0 of 
+                 true -> {true, lists:nth(1, ReqsForOwnerSorted)};
+                 false -> false
+             end;
         _ ->
             false
     end.
@@ -375,7 +378,7 @@ delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
             CurrentOwner = current_owner_for_name_short(Req#req.name, State),
             case is_this_request_in_the_queue(Req, State) of
                 true -> 
-                    {ok, NewState} = remove_request_from_queue(Req, State),
+                    {ok, _RmdReq, NewState} = remove_request_from_queue(Req, State),
                     {ok, CurrentOwner, NewState};
                 false -> 
                     {ok, CurrentOwner, State}
@@ -440,6 +443,3 @@ send_response(Pid, CurrentOwner) ->
     % gen_cluster:cast(Pid, {mutex, response, CurrentOwner, self()}).
     % ?TRACE("responding to pid with current owner", [Pid, CurrentOwner]),
     gen_server:cast(Pid, {mutex, response, CurrentOwner, self()}).
-
-
-

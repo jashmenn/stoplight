@@ -16,7 +16,7 @@ lock(Name, Timeout) ->
        {crit, Request, LobbyPid} -> 
            {crit, LobbyPid}
     after Timeout -> 
-       no
+       {no, LobPid}
     end.
 
 release(Lobbyist) ->

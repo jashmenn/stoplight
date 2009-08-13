@@ -84,7 +84,7 @@ init(Args) ->
                       pendingInquiries=PendingInquiries,
                       numInquiryRounds=0
                    },
-    ?TRACE("starting new lobbyist", InitialState),
+    ?TRACE("starting new lobbyist", [self, self(), client, Client, name, Lockname]),
     ?enable_tracing,
     {ok, InitialState}.
 
@@ -167,6 +167,7 @@ handle_petition(State) ->
     ok.
 
 handle_release(State) ->
+    ?TRACE("sending release to", [from, self(), to, servers(State)]),
     multicast_servers({mutex, release, State#state.request}, State),
     ok.
 
@@ -241,33 +242,63 @@ try_for_lock(CurrentOwner, From, State) -> % {crit, NewState} | {no, NewState}
         true -> 
             case enough_servers_support_our_request(State) of
                 true -> {crit, State} ; % you get the lock! Congratulations!
-                false -> lobby_for_more_support(CurrentOwner, From, State)
+                false -> lobby_for_more_support(State)
             end;
         false -> {no, State}
         end,
     {Resp, NewState}.
 
-lobby_for_more_support(_CurrentOwner, _From, State) -> % {no, NewState}
+lobby_for_more_support(State) -> % {no, NewState}
+    R0 = State#state.responses,
+    {ok, NewState} = do_lobby_for_more_support(dict:fetch_keys(R0), State),
+    {no, NewState}.
+
+do_lobby_for_more_support([ServerPid|Rest], State) -> % {ok, NewState}
     Request = State#state.request,
     R0 = State#state.responses,
-    R1 = dict:map( 
-        fun(ServerPid, Response) -> 
-           case have_response_from_server(ServerPid, State) of
-               true ->
-                   RequestLt = request_lt(Request, Response),
-                   if
-                       Response#req.owner =:= Request#req.owner -> gen_cluster:cast(ServerPid, {mutex, yield, Request});
-                       RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request});
-                       true                                     -> gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
-                   end;
-               false ->
-                   false % do nothing
-           end,
-           undef % undef this response
-        end,
-        R0),
-    NewState = State#state{responses=R1},
-    {no, NewState}.
+    Response = dict:fetch(ServerPid, R0),  
+    {ok, State1} = case have_response_from_server(ServerPid, State) of
+        true ->
+            RequestLt = request_lt(Request, Response),
+            if
+                Response#req.owner =:= Request#req.owner -> gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
+                RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request}), {ok, State};
+                true                                     -> send_inquiry_if_needed(ServerPid, State)
+            end;
+        false ->
+            {ok, State} % do nothing
+    end,
+
+    R1 = dict:store(ServerPid, undef, State1#state.responses), % clear out response for this server
+    NewState = State1#state{responses=R1},
+    do_lobby_for_more_support(Rest, NewState);
+
+do_lobby_for_more_support([], State) -> % {ok, NewState}
+    {ok, State}.
+
+send_inquiry_if_needed(ServerPid, State) -> % {ok, NewState}
+    Request = State#state.request,
+
+    {ok, NewState} = case have_pending_inquiry_for(ServerPid, State) of
+        true -> 
+            {ok, State};
+        false ->
+            Timeout = inquiry_delay_time(State),
+            % ?TRACE("Timeout is", [self(), Timeout, State#state.numInquiryRounds]),
+            Pid = spawn(
+                fun() ->
+                  ?enable_tracing,
+                  receive stop -> ok
+                  after Timeout ->
+                      gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
+                  end
+                end),
+            P2 = dict:store(ServerPid, Pid, State#state.pendingInquiries),
+            Ntry = State#state.numInquiryRounds,
+            {ok, State#state{pendingInquiries=P2, numInquiryRounds=(Ntry+1)}}
+    end,
+     
+    {ok, NewState}.
 
 have_different_response_from_this_server(From, CurrentOwner, State) -> % bool()
     Responses = State#state.responses,
@@ -350,3 +381,25 @@ get_servers(Args) -> % []
 % TODO - need a tiebreaker based on client ID
 request_lt(Request, OtherRequest) -> % bool()
      Request#req.timestamp < OtherRequest#req.timestamp.
+
+have_pending_inquiry_for(ServerPid, State) -> % bool()
+    case dict:find(ServerPid, State#state.pendingInquiries) of
+        {ok, Response} -> 
+            case Response of
+                undef -> false;
+                InqPid -> 
+                    case is_process_alive(InqPid) of 
+                        true -> true;
+                        false -> false
+                    end
+            end;
+        error -> false
+    end.
+
+inquiry_delay_time(State) ->
+    Ntry = State#state.numInquiryRounds,
+    Max  = 3000, % 3 seconds 
+    case stoplight_util:floor(stoplight_util:random_exponential_delay(500, Ntry, Max)) of
+       1 -> 0;
+       Other -> Other
+    end.

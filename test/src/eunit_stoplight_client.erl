@@ -7,7 +7,8 @@
 setup() ->
     register(eunit_stoplight_client, self()),
     ttb:tracer(node(), [{file,"trace/ttb"},{process_info,false}]),
-    ttb:p(self(), [call,send]), % ttb:p(self(), [call,messages,sos,sol]),
+    % ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
+    ttb:p(self(), [call,send,messages,sos,sol]), % ttb:p(self(), [call,messages,sos,sol]),
 
     {ok, Node1Pid}  = stoplight_srv:start_named(stoplight_srv_local, {seed, undefined}),
     {ok, Node2Pid} = stoplight_srv:start_named(node2, {seed, Node1Pid}),
@@ -41,24 +42,41 @@ node_state_test_() ->
 
          {ok, State} = gen_server:call(stoplight_listener, state),
 
-         {crit, Lobbyist} = stoplight_client:lock(tree, 1),
+         {crit, Lobbyist} = stoplight_client:lock(tree, 10),
          register(tree_lobbyist, Lobbyist),
 
          Parent = self(),
 
-         spawn_link(fun() ->
-           ?TRACE("trying to get tree also", val),
-           Resp = stoplight_client:lock(tree, 1),
+         Pid1 = spawn_link(fun() ->
+           ?TRACE("trying to get tree (but shouldnt)", self()),
+           {Resp, Lob2} = stoplight_client:lock(tree, 10),
            ?assertEqual(no, Resp),
            ?TRACE("Resp", Resp),
+           ok = stoplight_client:release(Lob2),
            Parent ! {self(), done}
          end),
          receive
-             {Pid, done} -> 
+             {Pid1, done} -> 
                  ?TRACE("rec'd my message!", val),
                  ok
-         after 2000 -> timeout
+         after 500 -> timeout
          end,
+
+         Pid2 = spawn_link(fun() ->
+           ?TRACE("trying to get tree (and should, eventually)", self()),
+           {Resp2, Lob3} = stoplight_client:lock(tree, 1000),
+           ?TRACE("Resp2", Resp2),
+           ?assertEqual(crit, Resp2),
+           Parent ! {self(), done}
+         end),
+         ok = stoplight_client:release(Lobbyist),
+         receive
+             {Pid2, done} -> 
+                 ?TRACE("rec'd my second message!", val),
+                 ok
+         after 500 -> timeout
+         end,
+
          
          {ok}
       end
