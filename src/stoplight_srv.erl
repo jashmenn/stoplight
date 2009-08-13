@@ -175,6 +175,7 @@ handle_mutex({inquiry, Req}, State) ->
 handle_mutex_inquiry(Req, State) ->
     case is_request_from_current_owner(Req, State) of
         {true, _CurrentOwner} ->
+            % ?TRACE("request is from current owner, im not replying", self()),
             {noreply, State};
         false ->
             case current_owner_for_name(Req#req.name, State) of
@@ -229,6 +230,7 @@ handle_mutex_request_from_not_owner(Req, State) ->
     end,
     ReqPid = Req#req.owner,
     % gen_cluster:cast(ReqPid, {mutex, response, CurrentOwnerReq}), 
+    % ?TRACE("got a request not from owner", [ReqPid]),
     send_response(ReqPid, CurrentOwnerReq), 
     {noreply, NewState}.
 
@@ -435,7 +437,9 @@ empty_request_named(Name) ->
     #req{name=Name, owner=undefined, timestamp=undefined}.
 
 send_response(Pid, CurrentOwner) ->
-    gen_cluster:cast(Pid, {mutex, response, CurrentOwner, self()}).
+    % gen_cluster:cast(Pid, {mutex, response, CurrentOwner, self()}).
+    % ?TRACE("responding to pid with current owner", [Pid, CurrentOwner]),
+    gen_server:cast(Pid, {mutex, response, CurrentOwner, self()}).
 
 
 

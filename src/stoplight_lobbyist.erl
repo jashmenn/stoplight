@@ -81,7 +81,8 @@ init(Args) ->
                       request=Request,
                       responses=Responses
                    },
-    % ?TRACE("starting new lobbyist", InitialState),
+    ?TRACE("starting new lobbyist", InitialState),
+    ?enable_tracing,
     {ok, InitialState}.
 
 
@@ -170,6 +171,7 @@ handle_release(State) ->
 
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
+    % ?TRACE("lobbyist rec'd response ", [CurrentOwner, From, State]),
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     % ?TRACE("updated resp from ", [CurrentOwner, From, State1]),
 
@@ -182,6 +184,7 @@ handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
 
     case Resp of
         crit ->
+            % TODO - this Crit is sent once for m + every server >m . is that bad?
             Client ! {crit, State#state.request, self()},
             ok;
         no -> 

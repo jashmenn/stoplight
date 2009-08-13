@@ -17,6 +17,12 @@ end).
     name
   }).
 
+-define (enable_tracing, case ?DEBUG of
+  true -> ttb:p(self(), [call,send]);
+  false -> ok
+end).
+
+
 % cowner: the client it accepts, initially nil. 
 % towner: time stamp of cowner, initially nil. 
 % ReqQ: queue storing requests, initially empty. 

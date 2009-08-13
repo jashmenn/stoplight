@@ -12,7 +12,6 @@ lock(Name) ->
     lock(Name, 5000).
 lock(Name, Timeout) ->
     {ok, LobPid} = gen_server:call(?STOPLIGHT_LISTENER, {try_mutex, Name}),
-    ok = gen_server:call(LobPid, petition),
     receive
        {crit, Request, LobbyPid} -> 
            {crit, LobbyPid}

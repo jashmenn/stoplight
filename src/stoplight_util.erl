@@ -28,3 +28,10 @@ unix_seconds_since_epoch() ->
     LocalDateTime = calendar:datetime_to_gregorian_seconds({date(),time()}),
     UnixEpoch = calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}),
     LocalDateTime - UnixEpoch.
+
+% delay = MIN( Random * InitialTimeout * 2 ^ Ntry , Max )
+random_exponential_delay(InitialTimeout, Ntry, Max) -> 
+    R = random:uniform() + 1,
+    F = 2,
+    Calculated = math:pow(R * InitialTimeout * F, Ntry),
+    lists:min([Calculated, Max]).
