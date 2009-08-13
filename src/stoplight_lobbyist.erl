@@ -29,7 +29,7 @@
 -compile(export_all).
 
 %% Macros
--record(state, {name, pid, client, servers, responses, request}).
+-record(state, {name, pid, client, servers, responses, request, pendingInquiries, numInquiryRounds}).
 
 -define(tupleSearchVal(Key, TupleList), 
     ((fun (K, TL) ->
@@ -71,7 +71,8 @@ init(Args) ->
     Client    = ?tupleSearchVal(client, Args),
     Servers   = get_servers(Args),
 
-    Responses = responses_init(Servers),
+    Responses = servers_dict_init(Servers),
+    PendingInquiries = servers_dict_init(Servers),
     Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch()},
 
     InitialState = #state{
@@ -79,13 +80,13 @@ init(Args) ->
                       name=Lockname, 
                       client=Client,
                       request=Request,
-                      responses=Responses
+                      responses=Responses,
+                      pendingInquiries=PendingInquiries,
+                      numInquiryRounds=0
                    },
     ?TRACE("starting new lobbyist", InitialState),
     ?enable_tracing,
     {ok, InitialState}.
-
-
 
 %%--------------------------------------------------------------------
 %% Function: handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -214,11 +215,11 @@ handle_mutex_check(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State}.
 
 % return a dict where the keys are server pids and values are `undef`
-responses_init(Servers) -> 
-    responses_init(Servers, dict:new()).
-responses_init([H|T], D0) ->
-    responses_init(T, dict:store(H, undef, D0));
-responses_init([], D0) -> D0.
+servers_dict_init(Servers) -> 
+    servers_dict_init(Servers, dict:new()).
+servers_dict_init([H|T], D0) ->
+    servers_dict_init(T, dict:store(H, undef, D0));
+servers_dict_init([], D0) -> D0.
 
 multicast_servers(Msg, State) ->
     [ gen_cluster:cast(Server, Msg) || Server <- servers(State) ].

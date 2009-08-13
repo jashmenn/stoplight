@@ -17,7 +17,6 @@ setup() ->
     ?assert(is_pid(ListenerPid)),
 
     lists:map(fun(Pid) ->
-       ?TRACE("monitoring", Pid),
        ttb:p(Pid, [call,send]) % ttb:p(Pid, [call,messages,sos,sol])
     end, [ListenerPid, Node1Pid, Node2Pid, Node3Pid]),
 
