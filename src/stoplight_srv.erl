@@ -55,11 +55,13 @@ start_named(Name, Config) ->
 
 init(_Args) -> 
     % ?TRACE("Starting Stoplight Server", self()),
+    process_flag(trap_exit, true),
     InitialState = #srv_state{
                       pid=self(),
                       nodename=node(),
                       reqQs=dict:new(),
-                      owners=dict:new()
+                      owners=dict:new(),
+                      monitors=[]
                    },
     {ok, InitialState}.
 
@@ -79,6 +81,7 @@ handle_call({state}, _From, State) ->
 % reply with the current_owner for Name. Do *not* use this as part of the
 % algorithm. This is for test/debugging inspection only. 
 handle_call({current_owner, Name}, _From, State) -> % -> {ok, CurrentOwner}
+    ?TRACE("CurrentOwner", State),
     CurrentOwner = current_owner_for_name_short(Name, State),
     {reply, {ok, CurrentOwner}, State};
 
@@ -97,13 +100,13 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
-    link(Req#req.owner), % monitor Req - maybe store the Req by ownerPid somewhere for efficient lookup
-    case is_request_stale(Req, State) of
+    {ok, State1} = add_monitor_if_needed(Req#req.owner, State),
+    case is_request_stale(Req, State1) of
         true -> 
             % CurrentOwner = current_owner_for_name_short(Req#req.name, State),
             % {reply, {stale, CurrentOwner}, State}; % it is stale, don't give the mutex
-            {noreply, State}; % it is stale, don't give the mutex
-           _ -> handle_non_stale_mutex_cast({mutex, Tag, Req}, State)
+            {noreply, State1}; % it is stale, don't give the mutex
+           _ -> handle_non_stale_mutex_cast({mutex, Tag, Req}, State1)
     end;
 handle_cast(_Msg, State) -> 
     {noreply, State}.
@@ -114,11 +117,13 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
-    ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
-    {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
-    {noreply, NewState};
-handle_info(_Info, State) -> 
+% handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
+%     ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
+%     % {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
+%     % {noreply, NewState};
+%     {noreply, State};
+handle_info(Info, State) -> 
+    ?TRACE("REC'd other Info", Info),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -317,6 +322,7 @@ is_this_request_in_the_queue(Req, State) ->
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
 current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | undefined
+    ?TRACE("CurrentOwner4Name", State),
     Owners = State#srv_state.owners,
     case dict:find(Name, Owners) of
         {ok, CurrentOwner} -> 
@@ -471,7 +477,7 @@ do_delete_requests_from_pid_for_all_current_owners([Key|OtherKeys], Pid, State) 
     end,
     do_delete_requests_from_pid_for_all_current_owners(OtherKeys, Pid, NewState);
 
-do_delete_requests_from_pid_for_all_current_owners([], Pid, State) ->
+do_delete_requests_from_pid_for_all_current_owners([], _Pid, State) ->
     {ok, State}.
 
 delete_requests_from_pid_for_all_reqQs(Pid, State) ->
@@ -493,3 +499,22 @@ requests_in_queue_for_pid(Pid, Q) ->
     lists:all(fun(Elem) ->
                 Elem#req.owner =:= Pid
         end, Q).
+
+add_monitor_if_needed(Pid, State) ->
+    M = State#srv_state.monitors,
+    case lists:any(fun(Elem) -> Elem =:= Pid end, M) of 
+        true -> {ok, State};
+        false ->
+            Result = erlang:monitor(process, Pid),
+            ?TRACE("monitoring", [Pid, Result]),
+            NewState = State#srv_state{monitors=[Pid|M]},
+            {ok, NewState}
+    end.
+
+remove_monitor(Pid, State) ->
+    ?TRACE("removing monitoring", Pid),
+    erlang:demonitor(Pid),
+    M0 = State#srv_state.monitors,
+    M1 = lists:delete(Pid, M0),
+    {ok, State#srv_state{monitors=M1}}.
+

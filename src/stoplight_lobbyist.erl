@@ -139,7 +139,8 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 % Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(_Info, State) -> 
+handle_info(Info, State) -> 
+    ?TRACE("lobbyist got info", [self(), Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------

@@ -4,7 +4,7 @@
 -define (SERVER_GLOBAL, stoplight_srv).
 
 -define (TRACE(X, M), case ?DEBUG of
-  true -> io:format(user, "TRACE ~p:~p ~p ~p~n", [?MODULE, ?LINE, X, M]);
+  true -> io:format(user, "TRACE ~p:~p ~p ~p ~p~n", [?MODULE, ?LINE, self(), X, M]);
   false -> ok
 end).
 
@@ -30,7 +30,8 @@ end).
     ring,
     nodename,
     reqQs, % #req queues, namespaced by lock name
-    owners % owner #reqs, namespaced by lock name
+    owners, % owner #reqs, namespaced by lock name
+    monitors
   }).
 
 -record(req, {

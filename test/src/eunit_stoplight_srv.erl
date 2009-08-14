@@ -2,6 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/defines.hrl").
+-include_lib("../include/stoplight_eunit_helpers.hrl").
 
 setup() ->
     % ?TRACE("seed servers", self()),
@@ -11,23 +12,11 @@ setup() ->
     [node1, node2, node3].
 
 teardown(Servers) ->
-    % io:format(user, "teardown: ~p ~p ~n", [Servers, global:registered_names()]),
-    lists:map(fun(Pname) -> 
-        Pid = whereis(Pname),
-        % io:format(user, "takedown: ~p ~p ~n", [Pname, Pid]),
-        gen_cluster:cast(Pid, stop), 
-        unregister(Pname)
-     end, Servers),
-
-    lists:map(fun(Pname) -> 
-        Pid = global:whereis_name(Pname),
-        % io:format(user, "takedown: ~p ~p ~n", [Pname, Pid]),
-        gen_cluster:cast(Pid, stop), 
-        global:unregister_name(Pname)
-    end, global:registered_names()),
+    ?stop_and_unregister_servers(Servers),
+    ?stop_and_unregister_globals,
     ok.
 
-node_state_test_() ->
+node_state_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -41,7 +30,7 @@ node_state_test_() ->
       end
   }.
 
-stale_req_test_() ->
+stale_req_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -72,7 +61,7 @@ stale_req_test_() ->
       end
   }.
 
-mutex_release_test_() ->
+mutex_release_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -94,7 +83,7 @@ mutex_release_test_() ->
       end
   }.
 
-mutex_replace_test_() ->
+mutex_replace_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -130,7 +119,7 @@ mutex_replace_test_() ->
       end
   }.
 
-mutex_queue_promotion_test_() ->
+mutex_queue_promotion_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -179,7 +168,7 @@ mutex_queue_promotion_test_() ->
       end
   }.
 
-mutex_inquiry_test_() ->
+mutex_inquiry_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -211,7 +200,7 @@ mutex_inquiry_test_() ->
       end
   }.
 
-mutex_yield_by_owner_test_() ->
+mutex_yield_by_owner_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -236,7 +225,7 @@ mutex_yield_by_owner_test_() ->
       end
   }.
 
-mutex_yield_by_non_owner_test_() ->
+mutex_yield_by_non_owner_test_not() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -267,3 +256,58 @@ mutex_yield_by_non_owner_test_() ->
       end
   }.
 
+lock_holder_failing_test_() ->
+  {
+      setup, fun setup/0, fun teardown/1,
+      fun () ->
+         Node1Pid = whereis(node1),
+         {ok, Mock}  = gen_server_mock:new(),
+         {ok, Mock2}  = gen_server_mock:new(),
+
+         Req0 = #req{name=food, owner=Mock,  timestamp=100},
+         Req1 = #req{name=food, owner=Mock2, timestamp=110},
+
+         % request a lock
+         gen_server_mock:expect_cast(Mock, fun({mutex, response, R, _From}, _State) when R =:= Req0 -> ok end),
+         gen_cluster:cast(node1, {mutex, request, Req0}),
+
+         % also request the lock with Mock2, but don't get it
+         gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req0 -> ok end),
+         gen_cluster:cast(node1, {mutex, request, Req1}),
+
+         % expect to get a response with our cast
+         % gen_server_mock:expect_cast(Mock,  fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
+         ?TRACE("asserting mock1 expectations", val),
+
+         {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}), % sync
+
+         gen_server_mock:assert_expectations(Mock),
+         ?TRACE("asserted mock1", [Mock]),
+
+         Node1Pid ! {foo},
+
+         erlang:monitor(process, Mock),
+         gen_server_mock:crash(Mock),
+
+         receive 
+             {'DOWN',MRef,process,_,_} -> 
+                 ?TRACE("got the monitor val!", val)
+         after 1000 -> 
+                 ?TRACE("never got the monitor val", val)
+         end, 
+
+         % gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
+         % gen_cluster:cast(node1, {mutex, yield, Req0}),
+
+         % sync
+         ?TRACE("is_process_alive", is_process_alive(Node1Pid)),
+         ?TRACE("is mock process alive", is_process_alive(Mock)),
+
+         {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}),
+         % gen_server_mock:assert_expectations(Mock2),
+         {ok}
+      end
+  }.
+
+
+% queue entry failing test
