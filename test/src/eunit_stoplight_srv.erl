@@ -277,33 +277,23 @@ lock_holder_failing_test_() ->
 
          % expect to get a response with our cast
          % gen_server_mock:expect_cast(Mock,  fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
-         ?TRACE("asserting mock1 expectations", val),
 
          {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}), % sync
-
          gen_server_mock:assert_expectations(Mock),
-         ?TRACE("asserted mock1", [Mock]),
 
-         Node1Pid ! {foo},
+         % ?TRACE("process", [Node1Pid, process_info(Node1Pid, [monitors, monitored_by])]),
 
-         erlang:monitor(process, Mock),
-         gen_server_mock:crash(Mock),
-
-         receive 
-             {'DOWN',MRef,process,_,_} -> 
-                 ?TRACE("got the monitor val!", val)
-         after 1000 -> 
-                 ?TRACE("never got the monitor val", val)
-         end, 
-
-         % gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
+         gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
          % gen_cluster:cast(node1, {mutex, yield, Req0}),
+         gen_server_mock:crash(Mock),
 
          % sync
          ?TRACE("is_process_alive", is_process_alive(Node1Pid)),
          ?TRACE("is mock process alive", is_process_alive(Mock)),
 
          {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}),
+
+         ?TRACE("process", [Node1Pid, process_info(Node1Pid, [monitors, monitored_by])]),
          % gen_server_mock:assert_expectations(Mock2),
          {ok}
       end

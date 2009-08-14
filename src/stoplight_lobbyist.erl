@@ -140,7 +140,7 @@ handle_cast(_Msg, State) ->
 % Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info(Info, State) -> 
-    ?TRACE("lobbyist got info", [self(), Info]),
+    % ?TRACE("lobbyist got info", [self(), Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -169,22 +169,17 @@ handle_petition(State) ->
     ok.
 
 handle_release(State) ->
-    ?TRACE("sending release to", [from, self(), to, servers(State)]),
+    % ?TRACE("sending release to", [from, self(), to, servers(State)]),
     multicast_servers({mutex, release, State#state.request}, State),
     ok.
 
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
-    % ?TRACE("lobbyist rec'd response ", [CurrentOwner, From, State]),
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
-    % ?TRACE("updated resp from ", [CurrentOwner, From, State1]),
 
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
-    % ?TRACE("try for lock", [Resp, State2]),
 
     Client = State2#state.client,
-    % ?TRACE("client is", Client),
-    % ?TRACE("pid?", is_pid(Client)),
 
     case Resp of
         crit ->
@@ -286,7 +281,6 @@ send_inquiry_if_needed(ServerPid, State) -> % {ok, NewState}
             {ok, State};
         false ->
             Timeout = inquiry_delay_time(State),
-            % ?TRACE("Timeout is", [self(), Timeout, State#state.numInquiryRounds]),
             Pid = spawn(
                 fun() ->
                   ?enable_tracing,

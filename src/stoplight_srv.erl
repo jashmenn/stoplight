@@ -55,7 +55,7 @@ start_named(Name, Config) ->
 
 init(_Args) -> 
     % ?TRACE("Starting Stoplight Server", self()),
-    process_flag(trap_exit, true),
+    % process_flag(trap_exit, true),
     InitialState = #srv_state{
                       pid=self(),
                       nodename=node(),
@@ -75,13 +75,11 @@ init(_Args) ->
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
 handle_call({state}, _From, State) ->
-    % ?TRACE("queried state:", State),
     {reply, {ok, State}, State};
 
 % reply with the current_owner for Name. Do *not* use this as part of the
 % algorithm. This is for test/debugging inspection only. 
 handle_call({current_owner, Name}, _From, State) -> % -> {ok, CurrentOwner}
-    ?TRACE("CurrentOwner", State),
     CurrentOwner = current_owner_for_name_short(Name, State),
     {reply, {ok, CurrentOwner}, State};
 
@@ -117,13 +115,14 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-% handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
-%     ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
-%     % {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
-%     % {noreply, NewState};
-%     {noreply, State};
+handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
+    ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
+    % {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
+    % {noreply, NewState};
+    {noreply, State};
 handle_info(Info, State) -> 
-    ?TRACE("REC'd other Info", Info),
+    ?TRACE("REC'd other Info 2", Info),
+    ?TRACE("InfoState 2", State),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -322,7 +321,7 @@ is_this_request_in_the_queue(Req, State) ->
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
 current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | undefined
-    ?TRACE("CurrentOwner4Name", State),
+    % ?TRACE("CurrentOwner4Name", State),
     Owners = State#srv_state.owners,
     case dict:find(Name, Owners) of
         {ok, CurrentOwner} -> 
