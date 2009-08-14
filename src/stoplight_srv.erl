@@ -97,6 +97,7 @@ handle_call(_Request, _From, State) ->
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
 handle_cast({mutex, Tag, Req}, State) when is_record(Req, req) ->
+    link(Req#req.owner), % monitor Req - maybe store the Req by ownerPid somewhere for efficient lookup
     case is_request_stale(Req, State) of
         true -> 
             % CurrentOwner = current_owner_for_name_short(Req#req.name, State),
@@ -113,6 +114,10 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
+    ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
+    {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
+    {noreply, NewState};
 handle_info(_Info, State) -> 
     {noreply, State}.
 
@@ -443,3 +448,48 @@ send_response(Pid, CurrentOwner) ->
     % gen_cluster:cast(Pid, {mutex, response, CurrentOwner, self()}).
     % ?TRACE("responding to pid with current owner", [Pid, CurrentOwner]),
     gen_server:cast(Pid, {mutex, response, CurrentOwner, self()}).
+
+% for now, just to a brute search. a refactoring would keep a dict to lookup
+% pid -> name so we dont have to search through all queues and current owners.
+delete_requests_from_pid_for_all_requests(Pid, State) -> % {ok, NewState}
+    {ok, State1} = delete_requests_from_pid_for_all_current_owners(Pid, State),
+    {ok, State2} = delete_requests_from_pid_for_all_reqQs(Pid, State1),
+    {ok, State2}.
+
+delete_requests_from_pid_for_all_current_owners(Pid, State) ->
+    do_delete_requests_from_pid_for_all_current_owners(dict:fetch_keys(State#srv_state.owners), Pid, State).
+
+do_delete_requests_from_pid_for_all_current_owners([Key|OtherKeys], Pid, State) ->
+    CurrentOwner = current_owner_for_name_short(Key, State),
+    NewState = case CurrentOwner#req.owner =:= Pid of
+        true -> 
+            EmptyReq = empty_request_named(Key),
+            {ok, State1} = set_current_owner(EmptyReq, State),
+            State1;
+        false ->
+            State
+    end,
+    do_delete_requests_from_pid_for_all_current_owners(OtherKeys, Pid, NewState);
+
+do_delete_requests_from_pid_for_all_current_owners([], Pid, State) ->
+    {ok, State}.
+
+delete_requests_from_pid_for_all_reqQs(Pid, State) ->
+    do_delete_requests_from_pid_for_all_reqQs(dict:fetch_keys(State#srv_state.reqQs), Pid, State).
+
+do_delete_requests_from_pid_for_all_reqQs([Key|OtherKeys], Pid, State) ->
+    Q = queue_for_name_short(Key, State),
+    Reqs = requests_in_queue_for_pid(Pid, Q),
+    {ok, NewState} = do_delete_requests_in_queue(Reqs, Key, State),
+    {ok, NewState}.
+
+do_delete_requests_in_queue([Req|Others], Name, State) ->
+    {ok, CurrentOwner, NewState} = delete_request(Req, State),
+    do_delete_requests_in_queue(Others, Name, NewState);
+do_delete_requests_in_queue([], Name, State) ->
+    {ok, State}.
+
+requests_in_queue_for_pid(Pid, Q) ->
+    lists:all(fun(Elem) ->
+                Elem#req.owner =:= Pid
+        end, Q).

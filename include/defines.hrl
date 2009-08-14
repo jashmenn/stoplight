@@ -18,8 +18,8 @@ end).
   }).
 
 -define (TRACING, true).
--define (enable_tracing, ttb:p(self(), [call,send])).
-% -define (enable_tracing, ok).
+% -define (enable_tracing, ttb:p(self(), [call,send])).
+-define (enable_tracing, ok).
 
 % cowner: the client it accepts, initially nil. 
 % towner: time stamp of cowner, initially nil. 

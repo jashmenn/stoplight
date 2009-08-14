@@ -8,9 +8,9 @@ setup() ->
     register(eunit_stoplight_client, self()),
     ttb:tracer(node(), [{file,"trace/ttb"},{process_info,false}]),
     % ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
-    ttb:p(self(), [call,send,messages,sos,sol]), % ttb:p(self(), [call,messages,sos,sol]),
+    ttb:p(self(), [call,send,messages,sos,sol]),
 
-    {ok, Node1Pid}  = stoplight_srv:start_named(stoplight_srv_local, {seed, undefined}),
+    {ok, Node1Pid} = stoplight_srv:start_named(stoplight_srv_local, {seed, undefined}),
     {ok, Node2Pid} = stoplight_srv:start_named(node2, {seed, Node1Pid}),
     {ok, Node3Pid} = stoplight_srv:start_named(node3, {seed, Node1Pid}),
 
@@ -18,7 +18,7 @@ setup() ->
     ?assert(is_pid(ListenerPid)),
 
     lists:map(fun(Pid) ->
-       ttb:p(Pid, [call,send]) % ttb:p(Pid, [call,messages,sos,sol])
+       ttb:p(Pid, [call,send,messages,sos,sol])
     end, [ListenerPid, Node1Pid, Node2Pid, Node3Pid]),
 
     MS1 = [{'_',[],[{return_trace},{message,{caller}}]}], % dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
@@ -48,32 +48,22 @@ node_state_test_() ->
          Parent = self(),
 
          Pid1 = spawn_link(fun() ->
-           ?TRACE("trying to get tree (but shouldnt)", self()),
            {Resp, Lob2} = stoplight_client:lock(tree, 10),
            ?assertEqual(no, Resp),
-           ?TRACE("Resp", Resp),
            ok = stoplight_client:release(Lob2),
            Parent ! {self(), done}
          end),
-         receive
-             {Pid1, done} -> 
-                 ?TRACE("rec'd my message!", val),
-                 ok
+         receive {Pid1, done} -> ok
          after 500 -> timeout
          end,
 
          Pid2 = spawn_link(fun() ->
-           ?TRACE("trying to get tree (and should, eventually)", self()),
            {Resp2, Lob3} = stoplight_client:lock(tree, 1000),
-           ?TRACE("Resp2", Resp2),
            ?assertEqual(crit, Resp2),
            Parent ! {self(), done}
          end),
          ok = stoplight_client:release(Lobbyist),
-         receive
-             {Pid2, done} -> 
-                 ?TRACE("rec'd my second message!", val),
-                 ok
+         receive {Pid2, done} -> ok
          after 500 -> timeout
          end,
 
