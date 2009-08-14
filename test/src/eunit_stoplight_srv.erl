@@ -16,7 +16,7 @@ teardown(Servers) ->
     ?stop_and_unregister_globals,
     ok.
 
-node_state_test_not() ->
+node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -30,7 +30,7 @@ node_state_test_not() ->
       end
   }.
 
-stale_req_test_not() ->
+stale_req_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -61,7 +61,7 @@ stale_req_test_not() ->
       end
   }.
 
-mutex_release_test_not() ->
+mutex_release_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -83,7 +83,7 @@ mutex_release_test_not() ->
       end
   }.
 
-mutex_replace_test_not() ->
+mutex_replace_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -119,7 +119,7 @@ mutex_replace_test_not() ->
       end
   }.
 
-mutex_queue_promotion_test_not() ->
+mutex_queue_promotion_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -168,7 +168,7 @@ mutex_queue_promotion_test_not() ->
       end
   }.
 
-mutex_inquiry_test_not() ->
+mutex_inquiry_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -200,7 +200,7 @@ mutex_inquiry_test_not() ->
       end
   }.
 
-mutex_yield_by_owner_test_not() ->
+mutex_yield_by_owner_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -225,7 +225,7 @@ mutex_yield_by_owner_test_not() ->
       end
   }.
 
-mutex_yield_by_non_owner_test_not() ->
+mutex_yield_by_non_owner_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
@@ -275,26 +275,18 @@ lock_holder_failing_test_() ->
          gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req0 -> ok end),
          gen_cluster:cast(node1, {mutex, request, Req1}),
 
-         % expect to get a response with our cast
-         % gen_server_mock:expect_cast(Mock,  fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
-
          {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}), % sync
          gen_server_mock:assert_expectations(Mock),
 
-         % ?TRACE("process", [Node1Pid, process_info(Node1Pid, [monitors, monitored_by])]),
-
+         % Mock2 should expect to get a response once Mock crashes
          gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
-         % gen_cluster:cast(node1, {mutex, yield, Req0}),
          gen_server_mock:crash(Mock),
 
          % sync
-         ?TRACE("is_process_alive", is_process_alive(Node1Pid)),
-         ?TRACE("is mock process alive", is_process_alive(Mock)),
-
-         {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}),
-
-         ?TRACE("process", [Node1Pid, process_info(Node1Pid, [monitors, monitored_by])]),
-         % gen_server_mock:assert_expectations(Mock2),
+         {ok, _} = gen_cluster:call(node1, {current_owner, food}),
+         {ok, CurrentOwner3} = gen_cluster:call(node1, {current_owner, food}),
+         ?assertEqual(Req1, CurrentOwner3),
+         gen_server_mock:assert_expectations(Mock2),
          {ok}
       end
   }.

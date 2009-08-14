@@ -117,12 +117,9 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
     ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
-    % {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
-    % {noreply, NewState};
-    {noreply, State};
+    {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
+    {noreply, NewState};
 handle_info(Info, State) -> 
-    ?TRACE("REC'd other Info 2", Info),
-    ?TRACE("InfoState 2", State),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -184,7 +181,6 @@ handle_mutex({inquiry, Req}, State) ->
 handle_mutex_inquiry(Req, State) ->
     case is_request_from_current_owner(Req, State) of
         {true, _CurrentOwner} ->
-            % ?TRACE("request is from current owner, im not replying", self()),
             {noreply, State};
         false ->
             case current_owner_for_name(Req#req.name, State) of
@@ -238,8 +234,6 @@ handle_mutex_request_from_not_owner(Req, State) ->
             end
     end,
     ReqPid = Req#req.owner,
-    % gen_cluster:cast(ReqPid, {mutex, response, CurrentOwnerReq}), 
-    % ?TRACE("got a request not from owner", [ReqPid]),
     send_response(ReqPid, CurrentOwnerReq), 
     {noreply, NewState}.
 
@@ -321,7 +315,6 @@ is_this_request_in_the_queue(Req, State) ->
 % checks the current owners list, namespaced by name
 % CurrentOwner = #req
 current_owner_for_name(Name, State) -> % {ok, req#CurrentOwner} | undefined
-    % ?TRACE("CurrentOwner4Name", State),
     Owners = State#srv_state.owners,
     case dict:find(Name, Owners) of
         {ok, CurrentOwner} -> 
@@ -450,13 +443,55 @@ empty_request_named(Name) ->
     #req{name=Name, owner=undefined, timestamp=undefined}.
 
 send_response(Pid, CurrentOwner) ->
-    % gen_cluster:cast(Pid, {mutex, response, CurrentOwner, self()}).
-    % ?TRACE("responding to pid with current owner", [Pid, CurrentOwner]),
     gen_server:cast(Pid, {mutex, response, CurrentOwner, self()}).
 
 % for now, just to a brute search. a refactoring would keep a dict to lookup
 % pid -> name so we dont have to search through all queues and current owners.
 delete_requests_from_pid_for_all_requests(Pid, State) -> % {ok, NewState}
+    Reqs = find_all_reqs_from_pid(Pid, State),
+    {ok, NewState} = delete_requests(Reqs, State),
+    {ok, NewState}.
+
+delete_requests([Req|Others], State) ->
+    {ok, _CurrentOwner, NewState} = delete_request(Req, State),
+    delete_requests(Others, NewState);
+delete_requests([], State) ->
+    {ok, State}.
+
+find_all_reqs_from_pid(Pid, State) -> % list() of #reqs
+    {ok, Owners} = find_all_current_owners_from_pid(Pid, State),
+    {ok, Qs    } = find_all_requests_in_queues_from_pid(Pid, State),
+    lists:append([Owners, Qs]).
+
+find_all_current_owners_from_pid(Pid, State) ->
+    find_all_current_owners_from_pid(dict:fetch_keys(State#srv_state.owners), Pid, [], State).
+
+find_all_current_owners_from_pid([Key|OtherKeys], Pid, Acc, State) ->
+    CurrentOwner = current_owner_for_name_short(Key, State),
+    NewAcc = case erlang:is_record(CurrentOwner, req) of 
+        true ->
+            case CurrentOwner#req.owner =:= Pid of
+                true -> [CurrentOwner|Acc];
+                false -> Acc
+            end;
+        false -> Acc
+    end,
+    find_all_current_owners_from_pid(OtherKeys, Pid, NewAcc, State);
+find_all_current_owners_from_pid([], Pid, Acc, State) -> % {ok, Acc}
+    {ok, Acc}.
+
+find_all_requests_in_queues_from_pid(Pid, State) ->
+    find_all_requests_in_queues_from_pid(dict:fetch_keys(State#srv_state.reqQs), Pid, [], State).
+
+find_all_requests_in_queues_from_pid([Key|OtherKeys], Pid, Acc, State) -> 
+    Q = queue_for_name_short(Key, State),
+    Reqs = requests_in_queue_for_pid(Pid, Q),
+    NewAcc = lists:append(Acc, Reqs),
+    find_all_requests_in_queues_from_pid(OtherKeys, Pid, NewAcc, State);
+find_all_requests_in_queues_from_pid([], Pid, Acc, State) -> 
+    {ok, Acc}.
+
+delete_requests_from_pid_for_all_requests_old(Pid, State) -> % {ok, NewState}
     {ok, State1} = delete_requests_from_pid_for_all_current_owners(Pid, State),
     {ok, State2} = delete_requests_from_pid_for_all_reqQs(Pid, State1),
     {ok, State2}.
@@ -466,12 +501,17 @@ delete_requests_from_pid_for_all_current_owners(Pid, State) ->
 
 do_delete_requests_from_pid_for_all_current_owners([Key|OtherKeys], Pid, State) ->
     CurrentOwner = current_owner_for_name_short(Key, State),
-    NewState = case CurrentOwner#req.owner =:= Pid of
-        true -> 
-            EmptyReq = empty_request_named(Key),
-            {ok, State1} = set_current_owner(EmptyReq, State),
-            State1;
-        false ->
+    NewState = case erlang:is_record(CurrentOwner, req) of 
+        true ->
+            case CurrentOwner#req.owner =:= Pid of
+                true -> 
+                    EmptyReq = empty_request_named(Key),
+                    {ok, State1} = set_current_owner(EmptyReq, State),
+                    State1;
+                false ->
+                    State
+            end;
+        false -> 
             State
     end,
     do_delete_requests_from_pid_for_all_current_owners(OtherKeys, Pid, NewState);
@@ -486,16 +526,19 @@ do_delete_requests_from_pid_for_all_reqQs([Key|OtherKeys], Pid, State) ->
     Q = queue_for_name_short(Key, State),
     Reqs = requests_in_queue_for_pid(Pid, Q),
     {ok, NewState} = do_delete_requests_in_queue(Reqs, Key, State),
-    {ok, NewState}.
+    do_delete_requests_from_pid_for_all_reqQs(OtherKeys, Pid, NewState);
+
+do_delete_requests_from_pid_for_all_reqQs([], _Pid, State) ->
+    {ok, State}.
 
 do_delete_requests_in_queue([Req|Others], Name, State) ->
-    {ok, CurrentOwner, NewState} = delete_request(Req, State),
+    {ok, _CurrentOwner, NewState} = delete_request(Req, State),
     do_delete_requests_in_queue(Others, Name, NewState);
-do_delete_requests_in_queue([], Name, State) ->
+do_delete_requests_in_queue([], _Name, State) ->
     {ok, State}.
 
 requests_in_queue_for_pid(Pid, Q) ->
-    lists:all(fun(Elem) ->
+    lists:filter(fun(Elem) ->
                 Elem#req.owner =:= Pid
         end, Q).
 
@@ -505,15 +548,14 @@ add_monitor_if_needed(Pid, State) ->
         true -> {ok, State};
         false ->
             Result = erlang:monitor(process, Pid),
-            ?TRACE("monitoring", [Pid, Result]),
             NewState = State#srv_state{monitors=[Pid|M]},
             {ok, NewState}
     end.
 
-remove_monitor(Pid, State) ->
-    ?TRACE("removing monitoring", Pid),
-    erlang:demonitor(Pid),
-    M0 = State#srv_state.monitors,
-    M1 = lists:delete(Pid, M0),
-    {ok, State#srv_state{monitors=M1}}.
+% remove_monitor(Pid, State) ->
+%     ?TRACE("removing monitoring", Pid),
+%     erlang:demonitor(Pid),
+%     M0 = State#srv_state.monitors,
+%     M1 = lists:delete(Pid, M0),
+%     {ok, State#srv_state{monitors=M1}}.
 
