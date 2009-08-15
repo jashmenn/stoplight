@@ -1,4 +1,3 @@
 Stoplight: distributed mutex server, based on the sigma algorithm.
 
-## Thoughts ##
-Should this be more async?
+Based on: http://research.microsoft.com/pubs/69214/sigma_prdc05.pdf
