@@ -20,6 +20,9 @@
 start_link(_Type, _Args) ->
     gen_server:start_link({local, ?STOPLIGHT_LISTENER}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
 
+start_named_link(Name, _Type, _Args) ->
+    gen_server:start_link({local, Name}, ?MODULE, _InitOpts=[], _GenServerOpts=[]).
+
 init(_Args) -> {ok, #state{pid=self()}}.
 
 handle_call({try_mutex, Name}, From, State) ->

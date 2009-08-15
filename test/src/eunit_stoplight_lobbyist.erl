@@ -143,6 +143,7 @@ node_responses_dont_get_crit_test_() ->
          gen_server:cast(Lob1, {mutex, response, R1, Mock4}),
 
          % sync
+         timer:sleep(2000), % wait for the second inquiry
          gen_server:call(Lob1, state),
          gen_server_mock:assert_expectations([Client|Servers]),
          gen_server:call(Lob1, stop),

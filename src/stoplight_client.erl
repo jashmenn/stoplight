@@ -10,8 +10,10 @@
 
 lock(Name) ->
     lock(Name, 5000).
-lock(Name, Timeout) ->
-    {ok, LobPid} = gen_server:call(?STOPLIGHT_LISTENER, {try_mutex, Name}),
+lock(Name, Timeout) when is_integer(Timeout) ->
+    lock(Name, ?STOPLIGHT_LISTENER, Timeout).
+lock(Name, Listener, Timeout) ->
+    {ok, LobPid} = gen_server:call(Listener, {try_mutex, Name}),
     receive
        {crit, Request, LobbyPid} -> 
            {crit, LobbyPid}

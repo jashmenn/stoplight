@@ -84,7 +84,7 @@ init(Args) ->
                       pendingInquiries=PendingInquiries,
                       numInquiryRounds=0
                    },
-    ?TRACE("starting new lobbyist", [self, self(), client, Client, name, Lockname]),
+    % ?TRACE("starting new lobbyist", [self, self(), client, Client, name, Lockname]),
     link(Client), % monitor the client
     ?enable_tracing,
     {ok, InitialState}.

@@ -33,5 +33,11 @@ unix_seconds_since_epoch() ->
 random_exponential_delay(InitialTimeout, Ntry, Max) -> 
     R = random:uniform() + 1,
     F = 2,
-    Calculated = math:pow(R * InitialTimeout * F, Ntry),
+    Try = lists:min([Ntry, 1000]),
+    Base = floor(R * InitialTimeout * F),
+    Calculated = math:pow(Base, Try),
     lists:min([Calculated, Max]).
+
+random_element(List) ->
+    I = crypto:rand_uniform(1, length(List)),
+    lists:nth(I, List).

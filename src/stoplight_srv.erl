@@ -115,11 +115,11 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
-    ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
+handle_info({'DOWN', _MonitorRef, process, Pid, _Info}, State) ->
+    % ?TRACE("received 'DOWN'. Removing node's requests. Info:", Info),
     {ok, NewState} = delete_requests_from_pid_for_all_requests(Pid, State),
     {noreply, NewState};
-handle_info(Info, State) -> 
+handle_info(_Info, State) -> 
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -477,7 +477,7 @@ find_all_current_owners_from_pid([Key|OtherKeys], Pid, Acc, State) ->
         false -> Acc
     end,
     find_all_current_owners_from_pid(OtherKeys, Pid, NewAcc, State);
-find_all_current_owners_from_pid([], Pid, Acc, State) -> % {ok, Acc}
+find_all_current_owners_from_pid([], _Pid, Acc, _State) -> % {ok, Acc}
     {ok, Acc}.
 
 find_all_requests_in_queues_from_pid(Pid, State) ->
@@ -488,7 +488,7 @@ find_all_requests_in_queues_from_pid([Key|OtherKeys], Pid, Acc, State) ->
     Reqs = requests_in_queue_for_pid(Pid, Q),
     NewAcc = lists:append(Acc, Reqs),
     find_all_requests_in_queues_from_pid(OtherKeys, Pid, NewAcc, State);
-find_all_requests_in_queues_from_pid([], Pid, Acc, State) -> 
+find_all_requests_in_queues_from_pid([], _Pid, Acc, _State) -> 
     {ok, Acc}.
 
 delete_requests_from_pid_for_all_requests_old(Pid, State) -> % {ok, NewState}
@@ -547,15 +547,15 @@ add_monitor_if_needed(Pid, State) ->
     case lists:any(fun(Elem) -> Elem =:= Pid end, M) of 
         true -> {ok, State};
         false ->
-            Result = erlang:monitor(process, Pid),
-            NewState = State#srv_state{monitors=[Pid|M]},
+            _MRef = erlang:monitor(process, Pid),
+            NewState = State#srv_state{monitors=[Pid|M]}, % todo, you need to store the MRef if you ever want to get rid of the monitor
             {ok, NewState}
     end.
 
-% remove_monitor(Pid, State) ->
-%     ?TRACE("removing monitoring", Pid),
-%     erlang:demonitor(Pid),
+% remove_monitor(MRef, State) ->
+%     ?TRACE("removing monitoring", MRef),
+%     erlang:demonitor(MRef),
 %     M0 = State#srv_state.monitors,
-%     M1 = lists:delete(Pid, M0),
+%     M1 = lists:delete(MRef, M0),
 %     {ok, State#srv_state{monitors=M1}}.
 
