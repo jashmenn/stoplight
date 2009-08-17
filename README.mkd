@@ -1,4 +1,11 @@
-Stoplight: distributed mutex server, based on the sigma algorithm.
+Stoplight is a distributed mutex server, based on the [Sigma algorithm](http://research.microsoft.com/pubs/69214/sigma_prdc05.pdf).
 
-Based on: http://research.microsoft.com/pubs/69214/sigma_prdc05.pdf
+> Mutual exclusion: No two different clients are in their critical sections at the same time.
+
+Features:
+* progress guaranteed in the face of process crashes (i.e. lockout-freedom, will not deadlock)
+* assumes asynchronous and unreliable communication 
+* survives server and client memory loss
+* endures messages being lost, duplicated or delivered out of order (non-FIFO)
+* mutual exclusion guaranteed if `f<n/3` where `f` is the number of failed servers and `n` is the total number of servers.
 
