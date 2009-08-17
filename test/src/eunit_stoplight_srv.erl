@@ -260,7 +260,7 @@ lock_holder_failing_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
-         Node1Pid = whereis(node1),
+          _Node1Pid = whereis(node1),
          {ok, Mock}  = gen_server_mock:new(),
          {ok, Mock2}  = gen_server_mock:new(),
 

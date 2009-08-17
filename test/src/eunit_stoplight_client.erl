@@ -35,13 +35,13 @@ teardown(Servers) ->
     ttb:format("trace"),
     ok.
 
-node_state_test_not() ->
+node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       {timeout, 300, 
       fun () ->
 
-         {ok, State} = gen_server:call(stoplight_listener, state),
+         {ok, _State} = gen_server:call(stoplight_listener, state),
 
          {crit, Lobbyist} = stoplight_client:lock(tree, 10),
          register(tree_lobbyist, Lobbyist),
@@ -59,7 +59,7 @@ node_state_test_not() ->
          end,
 
          Pid2 = spawn_link(fun() ->
-           {Resp2, Lob3} = stoplight_client:lock(tree, 1000),
+           {Resp2, _Lob3} = stoplight_client:lock(tree, 1000),
            ?assertEqual(crit, Resp2),
            Parent ! {self(), done}
          end),
@@ -95,7 +95,7 @@ node_fuzz_one_test_() ->
          {ok, Node3Pid} = stoplight_srv:start_named(node3, {seed, Node1Pid}),
          {ok, Node4Pid} = stoplight_srv:start_named(node4, {seed, Node1Pid}),
          {ok, Node5Pid} = stoplight_srv:start_named(node5, {seed, Node1Pid}),
-         ServerPool = [Node1Pid, Node2Pid, Node3Pid, Node4Pid, Node5Pid],
+         _ServerPool = [Node1Pid, Node2Pid, Node3Pid, Node4Pid, Node5Pid],
 
          {ok, Listener1Pid} = stoplight_listener:start_named_link(listener1, [], []),
          {ok, Listener2Pid} = stoplight_listener:start_named_link(listener2, [], []),
@@ -116,7 +116,7 @@ node_fuzz_one_test_() ->
           %% create a pool of M clients all trying to get a lock on apple
          Parent = self(),
 
-         lists:map(fun(I) ->
+         lists:map(fun(_I) ->
                      spawn_link(fun() -> 
                      timer:sleep(random:uniform(300)),
                         lock_tester:try_for(tree, ListenerPool),
@@ -125,7 +125,7 @@ node_fuzz_one_test_() ->
           end,
          lists:seq(1, 20)),
 
-         lists:map(fun(I) ->
+         lists:map(fun(_I) ->
                      spawn_link(fun() -> 
                      timer:sleep(random:uniform(300)),
                         lock_tester:try_for(apple, ListenerPool),
@@ -137,12 +137,6 @@ node_fuzz_one_test_() ->
 
          flush_buffer(40),
 
-        % receive 
-        %      {'DOWN',MRef,process,_,_} -> 
-        %          ?TRACE("got the monitor val!", val)
-        % after 1000 -> 
-        %         ?TRACE("never got the monitor val", val)
-        % end, 
          {ok}
       end
       }
@@ -153,7 +147,7 @@ flush_buffer(0) ->
     ok;
 flush_buffer(N) -> 
     receive 
-        {done, Pid} ->
+        {done, _Pid} ->
             % ?TRACE("Pid done ", [Pid, left, N-1]),
             flush_buffer(N-1);
         _Any -> 

@@ -32,7 +32,7 @@ node_state_test_() ->
   {
       setup, fun setup/0, fun teardown/1,
       fun () ->
-         {ok, State1} = gen_cluster:call(lobbyist1, state),
+         {ok, _State1} = gen_cluster:call(lobbyist1, state),
          {ok}
       end
   }.
@@ -44,7 +44,7 @@ node_multicast_request_test_() ->
          {ok, Mock1} = gen_server_mock:new(),
          {ok, Mock2} = gen_server_mock:new(),
          {ok, Mock3} = gen_server_mock:new(),
-         Servers = [Mock1, Mock2, Mock3],
+         _Servers = [Mock1, Mock2, Mock3],
 
          % register Mock1 as our hook server
          register(stoplight_srv_local, Mock1),
@@ -70,7 +70,7 @@ node_responses_get_crit_test_() ->
       setup, fun setup/0, fun teardown/1,
       fun () ->
          Servers = gen_server_mock:new(3),
-         [Mock1, Mock2, Mock3] = Servers,
+         [Mock1, Mock2, _Mock3] = Servers,
 
          {ok, Client} = gen_server_mock:new(),
 
@@ -78,7 +78,7 @@ node_responses_get_crit_test_() ->
          {ok, R0} = gen_server:call(Lob, request),
 
          % expect getting crit
-         gen_server_mock:expect_info(Client, fun({crit, Request, _From}, _State) -> ok end),
+         gen_server_mock:expect_info(Client, fun({crit, _Request, _From}, _State) -> ok end),
 
          % respond with support 
          gen_server:cast(Lob, {mutex, response, R0, Mock1}),
@@ -116,7 +116,7 @@ node_responses_dont_get_crit_test_() ->
       setup, fun setup/0, fun teardown/1,
       fun () ->
          Servers = gen_server_mock:new(5),
-         [Mock1, Mock2, Mock3, Mock4, Mock5] = Servers,
+         [Mock1, Mock2, Mock3, Mock4, _Mock5] = Servers,
 
          {ok, Client} = gen_server_mock:new(),
 

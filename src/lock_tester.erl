@@ -1,7 +1,7 @@
 -module(lock_tester).
 -compile(export_all).
 
--include_lib("../../include/defines.hrl").
+-include_lib("../include/defines.hrl").
 -define(LOCK_DIR, "/tmp/stoplight_locks").
 
 try_for(Name, ListenerPool) ->

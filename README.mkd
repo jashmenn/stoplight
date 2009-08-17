@@ -13,3 +13,33 @@ Features:
 * mutual exclusion guaranteed if `f<n/3` where `f` is the number of failed servers and `n` is the total number of servers.
 
 # Install #
+
+## Prerequisites
+
+* ruby / rubygems / rake
+* `gem install skelerl`
+
+## Build
+
+    rake compile
+
+
+# Layout #
+
+        .
+        |-- EMakefile
+        |-- INSTALL
+        |-- README.mkd
+        |-- deps                 # dependencies
+        |-- doc                  # documentation
+        |-- ebin                 # app, bootscripts, ebin files
+        |-- include              # headers 
+        |-- priv
+        |   `-- tasks            # rake tasks
+        |-- scripts              # scripts to start/stop stoplight
+        |-- src                  # main source
+        `-- test                 # tests
+            |-- ebin
+            |-- include
+            `-- src
+        
