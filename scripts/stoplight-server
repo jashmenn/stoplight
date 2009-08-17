@@ -1,0 +1,46 @@
+#!/bin/sh
+# script to start stoplight server.
+# credit to RabbitMQ for the original outline
+
+NODENAME=stoplight
+NODE_IP_ADDRESS=0.0.0.0
+SERVER_ERL_ARGS="+K true"
+CLUSTER_CONFIG_FILE=/etc/stoplight/stoplight_cluster.config
+STOPLIGHT_ROOT="`dirname $0`/.."
+LOG_BASE="$STOPLIGHT_ROOT/log"
+STOPLIGHT_START_STOPLIGHT=
+SERVER_START_ARGS=
+
+[ -f /etc/stoplight/stoplight.conf ] && . /etc/stoplight/stoplight.conf
+
+[ "x" = "x$STOPLIGHT_NODENAME" ]        && STOPLIGHT_NODENAME=${NODENAME}
+[ "x" = "x$STOPLIGHT_NODE_IP_ADDRESS" ] && STOPLIGHT_NODE_IP_ADDRESS=${NODE_IP_ADDRESS}
+[ "x" = "x$STOPLIGHT_SERVER_ERL_ARGS" ] && STOPLIGHT_SERVER_ERL_ARGS=${SERVER_ERL_ARGS}
+[ "x" = "x$STOPLIGHT_CLUSTER_CONFIG_FILE" ] && STOPLIGHT_CLUSTER_CONFIG_FILE=${CLUSTER_CONFIG_FILE}
+[ "x" = "x$STOPLIGHT_SERVER_START_ARGS" ] && STOPLIGHT_SERVER_START_ARGS=${SERVER_START_ARGS}
+[ "x" = "x$STOPLIGHT_LOG_BASE" ] && STOPLIGHT_LOG_BASE=${LOG_BASE}
+[ "x" = "x$STOPLIGHT_LOGS" ] && STOPLIGHT_LOGS=${LOGS}
+[ "x" = "x$STOPLIGHT_LOGS" ] && STOPLIGHT_LOGS="${STOPLIGHT_LOG_BASE}/${STOPLIGHT_NODENAME}.log"
+[ "x" = "x$STOPLIGHT_SASL_LOGS" ] && STOPLIGHT_SASL_LOGS=${SASL_LOGS}
+[ "x" = "x$STOPLIGHT_SASL_LOGS" ] && STOPLIGHT_SASL_LOGS="${STOPLIGHT_LOG_BASE}/${STOPLIGHT_NODENAME}-sasl.log"
+
+if [ -f "$STOPLIGHT_CLUSTER_CONFIG_FILE" ]; then
+    STOPLIGHT_CLUSTER_CONFIG_OPTION="-rabbit cluster_config \"$STOPLIGHT_CLUSTER_CONFIG_FILE\""
+else
+    STOPLIGHT_CLUSTER_CONFIG_OPTION=""
+fi
+
+DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
+
+# echo exec erl \
+echo erl \
+    -pa "`dirname $0`/../ebin" \
+    -pa $DEP_EBINS \
+    ${STOPLIGHT_START_STOPLIGHT} \
+    -sname ${STOPLIGHT_NODENAME} \
+    +W w \
+    ${STOPLIGHT_SERVER_ERL_ARGS} \
+    -boot stoplight
+    ${STOPLIGHT_CLUSTER_CONFIG_OPTION} \
+    ${STOPLIGHT_SERVER_START_ARGS} \
+    "$@"
