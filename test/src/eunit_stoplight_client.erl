@@ -83,7 +83,7 @@ teardown2(_) ->
     crypto:stop(),
     ok.
 
-node_fuzz_one_test_() ->
+node_fuzz_one_test_dont() ->
   {
       setup, fun setup2/0, fun teardown2/1,
       {timeout, 300, 

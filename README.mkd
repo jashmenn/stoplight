@@ -47,4 +47,9 @@ Features:
         
 
 # Acknowledgements 
+
 * Stoplight Icon by alessandro "mentalrey" rei from his KDE "Dark Glass Icon Project" - http://www.mentalrey.it/project.html
+
+# Similar Projects
+
+* [ZooKeeper](http://hadoop.apache.org/zookeeper/)

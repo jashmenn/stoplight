@@ -5,6 +5,6 @@
 -export([start/2, stop/1]).
 
 start(Type, _Args) ->
-  stoplight_srv_sup:start(Type, [{module, ?MODULE}]).
+  stoplight_srv_sup:start_link(Type, [{module, ?MODULE}]).
 
 stop(_State) -> ok.

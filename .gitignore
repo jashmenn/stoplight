@@ -14,3 +14,5 @@ doc/erlang.png
 doc/*.html
 doc/stylesheet.css
 .dialyzer_plt
+.dialyzer_plt.bak
+README.html
