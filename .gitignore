@@ -9,3 +9,7 @@ coverage
 .session.vim
 *-ttb
 *-ttb.ti
+doc/edoc-info
+doc/erlang.png
+doc/*.html
+doc/stylesheet.css
