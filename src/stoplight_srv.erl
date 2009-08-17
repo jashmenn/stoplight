@@ -4,7 +4,6 @@
 %%% Description : desc
 %%% Created     : 2009-07-30
 %%% TODO 
-%%% * crash detection
 %%% * CHECK send owner periodically
 %%%-------------------------------------------------------------------
 -module(stoplight_srv).
