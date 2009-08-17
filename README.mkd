@@ -1,4 +1,4 @@
-# Introduction #
+# Introduction
 
 Stoplight is a distributed mutex server, based on the [Sigma algorithm](http://research.microsoft.com/pubs/69214/sigma_prdc05.pdf).
 
@@ -12,7 +12,7 @@ Features:
 * endures messages being lost, duplicated or delivered out of order (non-FIFO)
 * mutual exclusion guaranteed if `f<n/3` where `f` is the number of failed servers and `n` is the total number of servers.
 
-# Install #
+# Install
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Features:
     rake compile
 
 
-# Layout #
+# Layout
 
         .
         |-- EMakefile
@@ -43,3 +43,6 @@ Features:
             |-- include
             `-- src
         
+
+# Acknowledgements 
+* Stoplight Icon by alessandro "mentalrey" rei from his KDE "Dark Glass Icon Project" - http://www.mentalrey.it/project.html
