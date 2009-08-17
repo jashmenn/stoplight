@@ -1,3 +1,5 @@
+!http://github.com/jashmenn/stoplight/blob/master/doc/stoplight.png?raw=true!
+
 # Introduction
 
 Stoplight is a distributed mutex server, based on the [Sigma algorithm](http://research.microsoft.com/pubs/69214/sigma_prdc05.pdf).
