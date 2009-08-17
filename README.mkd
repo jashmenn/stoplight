@@ -1,4 +1,4 @@
-!http://github.com/jashmenn/stoplight/blob/master/doc/stoplight.png?raw=true!
+![Stoplight](http://github.com/jashmenn/stoplight/blob/master/doc/stoplight.png?raw=true)
 
 # Introduction
 
