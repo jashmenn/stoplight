@@ -31,7 +31,7 @@ task :boot => [:compile] do
 end
 
 remove_task :compile
-task :compile do
+task :compile => [:check_submodules] do
   sh "#{erl} -pa #{ebin_dirs} -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'", :verbose => true
 end
 
@@ -41,6 +41,14 @@ task :rstakeout do
     cmd =  %Q{rstakeout -t 1 -v "rake run_tests --trace" '*/**/*.erl'}
     puts cmd
     exec cmd
+end
+
+task :check_submodules do
+    %w{gen_cluster gen_server_mock}.each do |mod|
+        unless File.exists?(File.dirname(__FILE__) + "/deps/#{mod}/README.mkd")
+            puts "#{mod} submodule not found. Please `git submodule update --init`"
+        end
+    end
 end
 
 Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}

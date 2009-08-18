@@ -19,7 +19,8 @@ Features:
 ## Prerequisites
 
 * ruby / rubygems / rake
-* `gem install skelerl`
+* `gem sources --add http://gems.github.com`
+* `gem install auser-skelerl auser-dslify`
 
 ## Build
 

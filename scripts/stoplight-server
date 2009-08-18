@@ -10,6 +10,7 @@ CLUSTER_CONFIG_FILE="$STOPLIGHT_ROOT/conf/stoplight.config"
 LOG_BASE="$STOPLIGHT_ROOT/log"
 STOPLIGHT_START_STOPLIGHT=
 SERVER_START_ARGS=
+RELOADING=
 
 [ -f /etc/stoplight/stoplight.conf ] && . /etc/stoplight/stoplight.conf
 
@@ -23,6 +24,7 @@ SERVER_START_ARGS=
 [ "x" = "x$STOPLIGHT_LOGS" ] && STOPLIGHT_LOGS="${STOPLIGHT_LOG_BASE}/${STOPLIGHT_NODENAME}.log"
 [ "x" = "x$STOPLIGHT_SASL_LOGS" ] && STOPLIGHT_SASL_LOGS=${SASL_LOGS}
 [ "x" = "x$STOPLIGHT_SASL_LOGS" ] && STOPLIGHT_SASL_LOGS="${STOPLIGHT_LOG_BASE}/${STOPLIGHT_NODENAME}-sasl.log"
+[ "x" = "x$STOPLIGHT_RELOADING" ] && STOPLIGHT_RELOADING=${RELOADING}
 
 if [ -f "$STOPLIGHT_CLUSTER_CONFIG_FILE" ]; then
     STOPLIGHT_CLUSTER_CONFIG_FILE_DIR=`dirname $STOPLIGHT_CLUSTER_CONFIG_FILE`
@@ -32,6 +34,14 @@ else
     STOPLIGHT_CLUSTER_CONFIG_OPTION=""
 fi
 
+if [ -f "$STOPLIGHT_RELOADING" ]; then
+    STOPLIGHT_RELOADING_OPTION="-s reloader"
+else
+    STOPLIGHT_RELOADING_OPTION=""
+fi
+
+
+
 DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
 
 set -f
@@ -40,11 +50,11 @@ set -f
 exec erl \
     -pa "`dirname $0`/../ebin" \
     -pa $DEP_EBINS \
+    ${STOPLIGHT_RELOADING_OPTION} \
     ${STOPLIGHT_START_STOPLIGHT} \
     -name ${STOPLIGHT_NODENAME} \
     +W w \
     ${STOPLIGHT_SERVER_ERL_ARGS} \
-    -s reloader \
     -boot stoplight \
     ${STOPLIGHT_CLUSTER_CONFIG_OPTION} \
     ${STOPLIGHT_SERVER_START_ARGS} \
