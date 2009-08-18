@@ -74,7 +74,6 @@ back to 3.
     2> {Resp2, Lob2} = stoplight_client:lock(green).
     {crit,<6078.91.0>}
 
-
 # Real Server
 
     # machine one

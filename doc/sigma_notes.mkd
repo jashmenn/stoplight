@@ -31,6 +31,10 @@ messages and do a random-exponential backoff before sending the next INQUIRY.
 Implementation thoughts
 =======================
 
+
+INQUIRY Loops
+=============
+
 Have the lobbyist store the number of INQUIRY rounds. 
 
 If you don't have enough support you need to send the appropriate YIELD and
@@ -47,5 +51,10 @@ to achive this,
 lobbyist must spawn an INQUIRY pid (IPid) and track that the INQUIRY is in the queue 
 the lobbyist must ignore any INQUIRYs that will be sent that are already in the sending queue 
 the IPid must accept a message to die if lobbyist becomes the new owner, the inquiry is no longer needed
+
+
+give up on requests
+===================
+
 
 

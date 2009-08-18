@@ -37,6 +37,7 @@ end).
 -record(req, {
     name,      % lock name
     owner,     % owner pid
-    timestamp  % timestamp
+    timestamp, % timestamp
+    ttl        % time-to-live in milliseconds
  }).
 

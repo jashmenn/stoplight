@@ -24,7 +24,7 @@ node_state_test_() ->
          gen_server_mock:expect_cast(Mock1, fun({mutex, request, _Request}, _State) -> ok end),
 
          {ok, State1} = gen_server:call(stoplight_listener, state),           {state, _} = State1,
-         {ok, Lob} = gen_server:call(stoplight_listener, {try_mutex, bobby}), ?assert(is_pid(Lob)),
+         {ok, Lob} = gen_server:call(stoplight_listener, {try_mutex, bobby, 500}), ?assert(is_pid(Lob)),
 
          {ok, Request} = gen_server:call(Lob, request),
          ?assertEqual(bobby, Request#req.name),

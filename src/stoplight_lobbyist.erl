@@ -69,11 +69,12 @@ start_named(Name, Config) ->
 init(Args) -> 
     Lockname  = ?tupleSearchVal(name, Args),
     Client    = ?tupleSearchVal(client, Args),
+    Ttl       = ?tupleSearchVal(request_ttl, Args),
     Servers   = get_servers(Args),
 
     Responses = servers_dict_init(Servers),
     PendingInquiries = servers_dict_init(Servers),
-    Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch()},
+    Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch(), ttl=Ttl},
 
     InitialState = #state{
                       pid=self(),
@@ -139,7 +140,7 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 % Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info(Info, State) -> 
+handle_info(_Info, State) -> 
     % ?TRACE("lobbyist got info", [self(), Info]),
     {noreply, State}.
 
@@ -234,7 +235,7 @@ update_responses_if_needed(CurrentOwner, From, State) -> % {ok, NewState}
         end,
     {ok, State2}.
 
-try_for_lock(CurrentOwner, From, State) -> % {crit, NewState} | {no, NewState}
+try_for_lock(CurrentOwner, _From, State) -> % {crit, NewState} | {no, NewState}
     {Resp, NewState} = case enough_responses_received(CurrentOwner, State) of
         true -> 
             case enough_servers_support_our_request(State) of
@@ -397,5 +398,6 @@ inquiry_delay_time(State) ->
     Max  = 3000, % 3 seconds 
     case stoplight_util:floor(stoplight_util:random_exponential_delay(500, Ntry, Max)) of
        1 -> 0;
-       Other -> Other
+       % Other -> Other
+       Other -> 0
     end.

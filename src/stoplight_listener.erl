@@ -25,9 +25,9 @@ start_named_link(Name, _Type, _Args) ->
 
 init(_Args) -> {ok, #state{pid=self()}}.
 
-handle_call({try_mutex, Name}, From, State) ->
+handle_call({try_mutex, Name, Timeout}, From, State) ->
     {ClientPid, _Tag} = From,
-    {ok, Pid} = stoplight_lobbyist:start([{name, Name}, {client, ClientPid}]),
+    {ok, Pid} = stoplight_lobbyist:start([{name, Name}, {client, ClientPid}, {request_ttl, Timeout}]),
     spawn(fun() ->
        ?enable_tracing,
        ok = gen_server:call(Pid, petition)

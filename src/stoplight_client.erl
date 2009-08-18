@@ -13,7 +13,7 @@ lock(Name) ->
 lock(Name, Timeout) when is_integer(Timeout) ->
     lock(Name, find_listener(), Timeout).
 lock(Name, Listener, Timeout) ->
-    {ok, LobPid} = gen_server:call(Listener, {try_mutex, Name}),
+    {ok, LobPid} = gen_server:call(Listener, {try_mutex, Name, Timeout}),
     receive
        {crit, Request, LobbyPid} -> 
            {crit, LobbyPid}

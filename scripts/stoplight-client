@@ -13,12 +13,6 @@ do
     CLIENT_NAME="client$CLIENT_INDEX"
 done
 
-    # -eval '
-    # ServerNode = list_to_atom("stoplight@" ++ net_adm:localhost()),
-    # net_adm:ping(ServerNode),
-    # ListenerPid = rpc:call(ServerNode, stoplight_listener, pid,  []).' \
-
-
 exec erl \
     -pa "`dirname $0`/../ebin" \
     -pa $DEP_EBINS \

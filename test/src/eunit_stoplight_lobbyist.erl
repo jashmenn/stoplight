@@ -11,7 +11,7 @@ setup() ->
     {ok, Servers} = gen_cluster:call(srv1, {'$gen_cluster', plist}),
     ?assertEqual(3, length(Servers)),
 
-    {ok, _} = stoplight_lobbyist:start_named(lobbyist1, [{name, food}, {servers, Servers}, {client, self()}]),
+    {ok, _} = stoplight_lobbyist:start_named(lobbyist1, [{name, food}, {servers, Servers}, {client, self()}, {request_ttl, 5000}]),
     [srv1, srv2, srv3, lobbyist1].
 
 teardown(Servers) ->
@@ -54,7 +54,7 @@ node_multicast_request_test_() ->
          gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
          gen_server_mock:expect_cast(Mock3, fun({mutex, request, _R}, _State) -> ok end),
 
-         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {client, self()}]),
+         {ok, LobPid} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {client, self()}, {request_ttl, 5000}]),
          ok = gen_server:call(LobPid, petition),
 
          gen_server_mock:assert_expectations([Mock1, Mock2, Mock3]),
@@ -74,7 +74,7 @@ node_responses_get_crit_test_() ->
 
          {ok, Client} = gen_server_mock:new(),
 
-         {ok, Lob} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}]),
+         {ok, Lob} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}, {request_ttl, 5000}]),
          {ok, R0} = gen_server:call(Lob, request),
 
          % expect getting crit
@@ -120,10 +120,10 @@ node_responses_dont_get_crit_test_() ->
 
          {ok, Client} = gen_server_mock:new(),
 
-         {ok, Lob1} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}]),
+         {ok, Lob1} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}, {request_ttl, 5000}]),
          {ok, R0} = gen_server:call(Lob1, request),
 
-         {ok, Lob2} = stoplight_lobbyist:start_named(lobbyist3, [{name, cats}, {servers, Servers}, {client, Client}]),
+         {ok, Lob2} = stoplight_lobbyist:start_named(lobbyist3, [{name, cats}, {servers, Servers}, {client, Client}, {request_ttl, 5000}]),
          {ok, R1} = gen_server:call(Lob2, request),
 
          R2 = R0#req{owner=self(), timestamp=9999999999}, % fake req with way newer timestamp
