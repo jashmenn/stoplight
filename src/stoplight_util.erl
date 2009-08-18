@@ -13,7 +13,6 @@ ceiling(X) ->
         _ -> T
     end.
 
-
 floor(X) ->
     T = erlang:trunc(X),
     case (X - T) of
@@ -35,8 +34,11 @@ random_exponential_delay(InitialTimeout, Ntry, Max) ->
     F = 2,
     Try = lists:min([Ntry, 1000]),
     Base = floor(R * InitialTimeout * F),
-    Calculated = math:pow(Base, Try),
-    lists:min([Calculated, Max]).
+    try math:pow(Base, Try) of
+        Calculated -> lists:min([Calculated, Max])
+    catch
+        _:_ -> Max
+    end.
 
 random_element(List) ->
     I = crypto:rand_uniform(1, length(List)),

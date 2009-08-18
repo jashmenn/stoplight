@@ -18,6 +18,7 @@ lock(Name, Listener, Timeout) ->
        {crit, Request, LobbyPid} -> 
            {crit, LobbyPid}
     after Timeout -> 
+       release(LobPid),
        {no, LobPid}
     end.
 

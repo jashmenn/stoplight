@@ -177,14 +177,13 @@ handle_release(State) ->
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
-
-    {Resp, State2} = try_for_lock(CurrentOwner, From, State1), 
-
+    {Resp, State2} = try_for_lock(CurrentOwner, From, State1),
     Client = State2#state.client,
 
     case Resp of
         crit ->
             % TODO - this Crit is sent once for m + every server >m . is that bad?
+            % TODO - what happens if we timed out, sent back 'no' and now we all of a sudden got crit?
             Client ! {crit, State#state.request, self()},
             ok;
         no -> 
@@ -240,7 +239,18 @@ try_for_lock(CurrentOwner, _From, State) -> % {crit, NewState} | {no, NewState}
         true -> 
             case enough_servers_support_our_request(State) of
                 true -> {crit, State} ; % you get the lock! Congratulations!
-                false -> lobby_for_more_support(State)
+                false -> 
+                    % todo here we should check and see if the request ttl has
+                    % expired and then release if it has and don't lobby for
+                    % more support
+                    % case has_request_ttl_expired(State1) of
+                    %     true -> 
+                    %         handle_release(State1), 
+                    %         {no, State1}
+                    %     false -> 
+                    %         lobby_for_more_support(State)
+                    % end,
+                    lobby_for_more_support(State)
             end;
         false -> {no, State}
         end,
@@ -401,3 +411,11 @@ inquiry_delay_time(State) ->
        % Other -> Other
        Other -> 0
     end.
+
+has_request_ttl_expired(State) ->
+    Request = State#state.request,
+    ReqTs = Request#req.timestamp,
+    Now = stoplight_util:unix_seconds_since_epoch(),
+    Ttl = Request#req.ttl,
+    TtlS = stoplight_util:ceiling(Ttl / 1000),
+    Now > (ReqTs + TtlS).
