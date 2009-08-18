@@ -3,7 +3,7 @@
         {id,"Stoplight"},
         {vsn, "0.1"},
         {modules, [stoplight,stoplight_client,
-                   stoplight_client_app,stoplight_listener,stoplight_lobbyist,
+                   stoplight_listener,stoplight_lobbyist,
                    stoplight_misc,stoplight_request,stoplight_srv,
                    stoplight_srv_sup,stoplight_util]}, 
         {env, [

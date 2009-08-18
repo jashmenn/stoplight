@@ -1,3 +1,4 @@
+require "rubygems"
 require "skelerl"
 
 Rake::TaskManager.class_eval do
@@ -9,7 +10,6 @@ end
 def remove_task(task_name)
   Rake.application.remove_task(task_name)
 end
-
 
 # TODOlist for generator
 # add utils/make_boot
@@ -34,6 +34,17 @@ task :compile => [:check_submodules] do
   sh "#{erl} -pa #{ebin_dirs} -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'", :verbose => true
 end
 
+remove_task :clean
+desc "Clean the beams from the ebin directory"
+task :clean do
+  cmd = "rm #{::File.dirname(__FILE__)}/ebin/*.{beam,boot}"
+  puts cmd
+  Kernel.system cmd
+end
+
+remove_task :recompile
+task :recompile => ["clean", "compile"]
+
 task :default => [:compile, :boot]
 
 task :rstakeout do
@@ -49,14 +60,6 @@ task :check_submodules do
             exit 1
         end
     end
-end
-
-remove_task :clean
-desc "Clean the beams from the ebin directory"
-task :clean do
-  cmd = "rm #{::File.dirname(__FILE__)}/ebin/*.{beam,boot}"
-  puts cmd
-  Kernel.system cmd
 end
 
 Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}
