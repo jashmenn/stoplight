@@ -25,22 +25,27 @@ SERVER_START_ARGS=
 [ "x" = "x$STOPLIGHT_SASL_LOGS" ] && STOPLIGHT_SASL_LOGS="${STOPLIGHT_LOG_BASE}/${STOPLIGHT_NODENAME}-sasl.log"
 
 if [ -f "$STOPLIGHT_CLUSTER_CONFIG_FILE" ]; then
-    STOPLIGHT_CLUSTER_CONFIG_OPTION="-config \"$STOPLIGHT_CLUSTER_CONFIG_FILE\""
+    STOPLIGHT_CLUSTER_CONFIG_FILE_DIR=`dirname $STOPLIGHT_CLUSTER_CONFIG_FILE`
+    STOPLIGHT_CLUSTER_CONFIG_FILE_TRUNC=`basename $STOPLIGHT_CLUSTER_CONFIG_FILE .config`
+    STOPLIGHT_CLUSTER_CONFIG_OPTION="-config $STOPLIGHT_CLUSTER_CONFIG_FILE_DIR/$STOPLIGHT_CLUSTER_CONFIG_FILE_TRUNC"
 else
     STOPLIGHT_CLUSTER_CONFIG_OPTION=""
 fi
 
 DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
 
-# echo exec erl \
-echo erl \
+set -f
+
+# echo erl \
+exec erl \
     -pa "`dirname $0`/../ebin" \
     -pa $DEP_EBINS \
     ${STOPLIGHT_START_STOPLIGHT} \
-    -sname ${STOPLIGHT_NODENAME} \
+    -name ${STOPLIGHT_NODENAME} \
     +W w \
     ${STOPLIGHT_SERVER_ERL_ARGS} \
+    -s reloader \
     -boot stoplight \
     ${STOPLIGHT_CLUSTER_CONFIG_OPTION} \
     ${STOPLIGHT_SERVER_START_ARGS} \
-    "$@"
+    $@

@@ -37,6 +37,13 @@ handle_call({try_mutex, Name}, From, State) ->
 handle_call(state, _From, State)    -> {reply, {ok, State}, State};
 handle_call(_Request, _From, State) -> {reply, okay, State}.
 handle_cast(_Msg, State)            -> {noreply, State}.
-handle_info(_Info, State)           -> {noreply, State}.
+handle_info(Info, State)           -> 
+    ?TRACE("rec'd INFO", Info),
+    {noreply, State}.
 terminate(_Reason, _State)          -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+pid() ->
+    whereis(?STOPLIGHT_LISTENER).
+
+

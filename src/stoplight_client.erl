@@ -11,7 +11,7 @@
 lock(Name) ->
     lock(Name, 5000).
 lock(Name, Timeout) when is_integer(Timeout) ->
-    lock(Name, ?STOPLIGHT_LISTENER, Timeout).
+    lock(Name, find_listener(), Timeout).
 lock(Name, Listener, Timeout) ->
     {ok, LobPid} = gen_server:call(Listener, {try_mutex, Name}),
     receive
@@ -23,3 +23,13 @@ lock(Name, Listener, Timeout) ->
 
 release(Lobbyist) ->
     ok = gen_server:call(Lobbyist, release).
+
+find_listener() ->
+    case whereis(?STOPLIGHT_LISTENER) of
+        undefined ->
+            ServerNode = list_to_atom("stoplight@" ++ net_adm:localhost()),
+            net_adm:ping(ServerNode),
+            ListenerPid = rpc:call(ServerNode, ?STOPLIGHT_LISTENER, pid,  []),
+            ListenerPid;
+        Pid -> Pid
+    end.

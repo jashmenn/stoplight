@@ -1,8 +1,27 @@
 #!/bin/sh
-# echo exec erl \
+# Find the next free erlang nodename using epmd  
 
+EXISTING_NAMES=`epmd -names`
 DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
-echo erl \
+
+CLIENT_INDEX=0
+CLIENT_NAME="client$CLIENT_INDEX"
+
+while [[ $(echo $EXISTING_NAMES | grep $CLIENT_NAME) && ($? == 0) ]]
+do
+    (( CLIENT_INDEX++ )) 
+    CLIENT_NAME="client$CLIENT_INDEX"
+done
+
+    # -eval '
+    # ServerNode = list_to_atom("stoplight@" ++ net_adm:localhost()),
+    # net_adm:ping(ServerNode),
+    # ListenerPid = rpc:call(ServerNode, stoplight_listener, pid,  []).' \
+
+
+exec erl \
     -pa "`dirname $0`/../ebin" \
     -pa $DEP_EBINS \
-    "$@"
+    -s reloader \
+    -name $CLIENT_NAME \
+    $@
