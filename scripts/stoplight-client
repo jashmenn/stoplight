@@ -1,0 +1,8 @@
+#!/bin/sh
+# echo exec erl \
+
+DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
+echo erl \
+    -pa "`dirname $0`/../ebin" \
+    -pa $DEP_EBINS \
+    "$@"
