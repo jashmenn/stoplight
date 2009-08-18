@@ -24,7 +24,8 @@ Features:
 
 ## Build
 
-    rake compile
+    cd stoplight
+    rake
 
 # Layout
 

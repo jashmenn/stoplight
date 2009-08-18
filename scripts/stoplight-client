@@ -7,10 +7,16 @@ DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
 CLIENT_INDEX=0
 CLIENT_NAME="client$CLIENT_INDEX"
 
-while [[ $(echo $EXISTING_NAMES | grep $CLIENT_NAME) && ($? == 0) ]]
-do
-    (( CLIENT_INDEX++ )) 
+has_existing_name() {
+  echo $EXISTING_NAMES | grep $1
+  return $?
+}
+
+has_existing_name $CLIENT_NAME
+while [ $? -eq 0 ]; do
+    CLIENT_INDEX=`expr $CLIENT_INDEX + 1`
     CLIENT_NAME="client$CLIENT_INDEX"
+    has_existing_name $CLIENT_NAME
 done
 
 exec erl \
