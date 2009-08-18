@@ -47,6 +47,7 @@ task :check_submodules do
     %w{gen_cluster gen_server_mock}.each do |mod|
         unless File.exists?(File.dirname(__FILE__) + "/deps/#{mod}/README.mkd")
             puts "#{mod} submodule not found. Please `git submodule update --init`"
+            exit 1
         end
     end
 end
