@@ -27,7 +27,6 @@ end
 
 task :boot => [:compile] do
   sh "(cd ebin; erl -pa ebin -noshell -run make_boot write_scripts stoplight)"
-  sh "(cd ebin; erl -pa ebin -noshell -run make_boot write_scripts stoplight_client)"
 end
 
 remove_task :compile
@@ -35,7 +34,7 @@ task :compile => [:check_submodules] do
   sh "#{erl} -pa #{ebin_dirs} -noinput +B -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.'", :verbose => true
 end
 
-task :default => [:compile]
+task :default => [:compile, :boot]
 
 task :rstakeout do
     cmd =  %Q{rstakeout -t 1 -v "rake run_tests --trace" '*/**/*.erl'}
@@ -50,6 +49,14 @@ task :check_submodules do
             exit 1
         end
     end
+end
+
+remove_task :clean
+desc "Clean the beams from the ebin directory"
+task :clean do
+  cmd = "rm #{::File.dirname(__FILE__)}/ebin/*.{beam,boot}"
+  puts cmd
+  Kernel.system cmd
 end
 
 Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}
