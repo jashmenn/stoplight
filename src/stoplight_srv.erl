@@ -17,7 +17,7 @@
          code_change/3]).
 
 % gen_cluster callback
--export([handle_join/3, handle_node_joined/3, handle_leave/4]).
+-export([handle_join/3, handle_node_joined/3, handle_leave/4, seed_nodes/1]).
 
 % debug
 -compile(export_all).
@@ -557,4 +557,7 @@ add_monitor_if_needed(Pid, State) ->
 %     M0 = State#srv_state.monitors,
 %     M1 = lists:delete(MRef, M0),
 %     {ok, State#srv_state{monitors=M1}}.
+
+seed_nodes(State) ->
+    stoplight_misc:existing_servers_list().
 

@@ -36,7 +36,7 @@ find_listener() ->
     end.
 
 find_server_node() ->
-    find_server_node(servers_to_try()).
+    find_server_node(stoplight_misc:existing_servers_list()).
 find_server_node([Server|Rest]) ->
     case net_adm:ping(Server) of
         pong -> Server;
@@ -44,11 +44,4 @@ find_server_node([Server|Rest]) ->
     end;
 find_server_node([]) -> no.
 
-servers_to_try() ->
-    Servers = [],
-    Servers1 = case os:getenv("STOPLIGHT_SERVER") of 
-        false -> Servers;
-        Server -> [list_to_atom(Server)|Servers]
-    end,
-    Servers2 = [list_to_atom("stoplight@" ++ net_adm:localhost())|Servers1],
-    Servers2.
+

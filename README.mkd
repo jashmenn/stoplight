@@ -75,9 +75,10 @@ back to 3.
 
 ## Troubleshooting
 
-You may have problems with the hostname. Try starting the server like so:
+You may have problems with the hostname. Try starting the server like so (replace with your IP address / hostname):
 
-    STOPLIGHT_NODENAME="server@jaunty.local" ./scripts/stoplight-server
+    STOPLIGHT_NODENAME="stoplight@192.168.133.128" ./scripts/stoplight-server
+    STOPLIGHT_SERVER="stoplight@192.168.133.128" ./scripts/stoplight-client
 
 # Real Server
 
