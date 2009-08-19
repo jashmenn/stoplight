@@ -55,11 +55,17 @@ end
 
 task :check_submodules do
     %w{gen_cluster gen_server_mock}.each do |mod|
-        unless File.exists?(File.dirname(__FILE__) + "/deps/#{mod}/README.mkd")
-            puts "#{mod} submodule not found. Please `git submodule update --init`"
-            exit 1
-        end
-    end
-end
+      dir = File.dirname(__FILE__) + "/deps/#{mod}"
+        unless File.exists?("#{dir}/README.mkd")
+            sh "git submodule update --init", :verbose => true
+            unless $? == 0
+              puts "#{mod} submodule not found. Please `git submodule update --init`"
+              exit 1
+            end
+        end 
+    end 
+end 
 
 Dir.glob(File.dirname(__FILE__) + "/priv/tasks/*.rake").each {|f| load f}
+
+
