@@ -4,6 +4,9 @@
 EXISTING_NAMES=`epmd -names`
 DEP_EBINS=`find deps -type d | grep -v \/test\/ | grep ebin`
 
+[ -f /etc/stoplight/stoplight.conf ] && . /etc/stoplight/stoplight.conf
+
+# Find a free client$(index) nodename
 CLIENT_INDEX=0
 CLIENT_NAME="client$CLIENT_INDEX"
 
@@ -19,9 +22,12 @@ while [ $? -eq 0 ]; do
     has_existing_name $CLIENT_NAME
 done
 
+# or use the nodename specified
+[ "x" = "x$STOPLIGHT_NODENAME" ]        && STOPLIGHT_NODENAME=${CLIENT_NAME}
+
 exec erl \
     -pa "`dirname $0`/../ebin" \
     -pa $DEP_EBINS \
     -s reloader \
-    -name $CLIENT_NAME \
+    -name $STOPLIGHT_NODENAME \
     $@

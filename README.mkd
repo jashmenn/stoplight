@@ -42,9 +42,6 @@ Features:
         |-- scripts              # scripts to start/stop stoplight
         |-- src                  # main source
         `-- test                 # tests
-            |-- ebin
-            |-- include
-            `-- src
 
 # Testing Locally
 
@@ -75,6 +72,12 @@ back to 3.
 
     2> {Resp2, Lob2} = stoplight_client:lock(green).
     {crit,<6078.91.0>}
+
+## Troubleshooting
+
+You may have problems with the hostname. Try starting the server like so:
+
+    STOPLIGHT_NODENAME="server@jaunty.local" ./scripts/stoplight-server
 
 # Real Server
 

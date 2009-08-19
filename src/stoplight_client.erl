@@ -28,9 +28,27 @@ release(Lobbyist) ->
 find_listener() ->
     case whereis(?STOPLIGHT_LISTENER) of
         undefined ->
-            ServerNode = list_to_atom("stoplight@" ++ net_adm:localhost()),
-            net_adm:ping(ServerNode),
+            ServerNode = find_server_node(),
+            pong = net_adm:ping(ServerNode),
             ListenerPid = rpc:call(ServerNode, ?STOPLIGHT_LISTENER, pid,  []),
             ListenerPid;
         Pid -> Pid
     end.
+
+find_server_node() ->
+    find_server_node(servers_to_try()).
+find_server_node([Server|Rest]) ->
+    case net_adm:ping(Server) of
+        pong -> Server;
+        pang -> find_server_node(Rest)
+    end;
+find_server_node([]) -> no.
+
+servers_to_try() ->
+    Servers = [],
+    Servers1 = case os:getenv("STOPLIGHT_SERVER") of 
+        false -> Servers;
+        Server -> [list_to_atom(Server)|Servers]
+    end,
+    Servers2 = [list_to_atom("stoplight@" ++ net_adm:localhost())|Servers1],
+    Servers2.
