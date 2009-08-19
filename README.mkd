@@ -49,17 +49,17 @@ Open three windows:
 
 window 1. 
 
-    ./scripts/stoplight-server
+    STOPLIGHT_NODENAME="stoplight@your-ip" ./scripts/stoplight-server
 
 window 2. 
 
-    ./scripts/stoplight-client
+    STOPLIGHT_SERVER="stoplight@your-ip" ./scripts/stoplight-client
     1> {Resp, Pid} = stoplight_client:lock(green, 1000).
     {crit,<6078.82.0>}
 
 window 3. 
 
-    ./scripts/start-client
+    STOPLIGHT_SERVER="stoplight@your-ip" ./scripts/stoplight-client
     1> {Resp, Lob} = stoplight_client:lock(green).        
     {no,<6078.91.0>}
 
@@ -73,17 +73,21 @@ back to 3.
     2> {Resp2, Lob2} = stoplight_client:lock(green).
     {crit,<6078.91.0>}
 
-## Troubleshooting
+## Clustering
 
-You may have problems with the hostname. Try starting the server like so (replace with your IP address / hostname):
+On Server Machine 1
 
     STOPLIGHT_NODENAME="stoplight@192.168.133.128" ./scripts/stoplight-server
+
+On Server Machine 2
+
+    STOPLIGHT_NODENAME="stoplight@192.168.1.66" STOPLIGHT_SERVER="toplight@192.168.133.128" ./scripts/stoplight-server
+    1> nodes().
+    ['stoplight@192.168.133.128']
+
+On Client Machine 
+
     STOPLIGHT_SERVER="stoplight@192.168.133.128" ./scripts/stoplight-client
-
-# Real Server
-
-    # machine one
-    ./scripts/start-server
 
 # Acknowledgements 
 
