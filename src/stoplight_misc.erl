@@ -20,22 +20,11 @@ connect_to_servers(ServerNames) ->
     ServerNames),
    {ok, ServerRefs}.
 
-% get_existing_servers(Namespace) ->
-%     ?TRACE("env servers:", application:get_env(Namespace, servers)),
-%     case application:get_env(Namespace, servers) of
-%     {ok, Servers}  -> 
-%         [ #noderef{name=Name} || Name <- Servers];
-%     _ -> []
-%     end.
-
-% get_indexed_pid(Namespace) ->
-
 existing_servers_list() ->
     Servers = [],
-    % Servers1 = [list_to_atom("stoplight@" ++ net_adm:localhost())|Servers],
-    Servers1 = Servers,
+    Servers1 = Servers, % Servers1 = [list_to_atom("stoplight@" ++ net_adm:localhost())|Servers],
 
-    Servers2 = case application:get_env(servers) of
+    Servers2 = case application:get_env(stoplight, servers) of
         {ok, EnvServers}  ->  lists:append([EnvServers, Servers1]);
         _ -> Servers1
     end,
