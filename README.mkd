@@ -89,6 +89,14 @@ On Client Machine
 
     STOPLIGHT_SERVER="stoplight@192.168.133.128" ./scripts/stoplight-client
 
+## Configuration
+
+`stoplight servers` is a valid `application` configuration option. This means
+when starting the *server* you can specify a list of addresses to other servers
+like so:     
+
+    STOPLIGHT_NODENAME='stoplight@192.168.1.66' STOPLIGHT_SERVER_START_ARGS="-stoplight servers ['stoplight@192.168.133.128']" ./scripts/stoplight-server 
+
 # Acknowledgements 
 
 * Stoplight Icon by alessandro "mentalrey" rei from his KDE "Dark Glass Icon Project" - http://www.mentalrey.it/project.html
