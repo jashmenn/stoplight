@@ -15,4 +15,5 @@ doc/*.html
 doc/stylesheet.css
 .dialyzer_plt
 .dialyzer_plt.bak
+ebin/stoplight.boot
 README.html
