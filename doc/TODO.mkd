@@ -1,0 +1,6 @@
+* sasl/logging
+* make reloading optional, off by default
+* setup periodic timer/check from server to anyone it supports
+
++ server cluster seed nodes via cli or config file
++ fix trying for lock 
