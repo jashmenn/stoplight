@@ -26,7 +26,7 @@ def erl
 end
 
 task :boot => [:compile] do
-  sh "(cd ebin; erl -pa ebin -noshell -run make_boot write_scripts stoplight)"
+  sh "(cd ebin; erl -pa ebin -noshell -run make_boot write_scripts stoplight 0.0.1)"
 end
 
 remove_task :compile
