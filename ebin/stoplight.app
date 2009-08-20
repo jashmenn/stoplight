@@ -12,5 +12,6 @@
         ]},
         {registered, [stoplight]},
         {applications, [kernel, stdlib, sasl]},
+        {start_phases, [{go,[]}]},
         {mod, {stoplight, []}}
 ]}.

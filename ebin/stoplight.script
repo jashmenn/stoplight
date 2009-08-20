@@ -1,4 +1,4 @@
-%% script generated at {2009,8,20} {11,45,3}
+%% script generated at {2009,8,20} {13,21,30}
 {script,
     {"stoplight","0.0.1"},
     [{preLoaded,[erlang,erl_prim_loader,prim_file,prim_inet,init,otp_ring0]},
@@ -157,7 +157,7 @@
                    {applications,[kernel,stdlib,sasl]},
                    {included_applications,[]},
                    {env,[{port,8648},{servers,[undefined]}]},
-                   {start_phases,undefined},
+                   {start_phases,[{go,[]}]},
                    {maxT,infinity},
                    {maxP,infinity},
                    {mod,{stoplight,[]}}]}]}},
