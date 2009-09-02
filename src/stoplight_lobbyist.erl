@@ -300,6 +300,8 @@ send_inquiry_if_needed(ServerPid, State) -> % {ok, NewState}
                       gen_cluster:cast(ServerPid, {mutex, inquiry, Request})
                   end
                 end),
+            % ideally we need to kill Pid to cancel the inquiry if we receive a response from ServerPid 
+            % however, since we will ignore superfluous responses we can skip that for now.
             P2 = dict:store(ServerPid, Pid, State#state.pendingInquiries),
             Ntry = State#state.numInquiryRounds,
             {ok, State#state{pendingInquiries=P2, numInquiryRounds=(Ntry+1)}}
