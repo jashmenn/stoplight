@@ -52,3 +52,55 @@ f() ->
    end. 
 
 
+%%% --------Internal functions--------
+%%% ----------------------------------
+%%% Format handler
+print(_Out,end_of_trace,_TI,N) ->
+    N;
+print(Out,Trace,_TI,N) ->
+    do_print(Out,Trace,N),
+    N+1.
+
+do_print(Out,{trace_ts,P,call,{M,F,A},Ts},N) ->
+    io:format(Out,
+              "~w: ~w, ~w:~n"
+              "Call      : ~w:~w/~w~n"
+              "Arguments :~p~n~n",
+              [N,Ts,P,M,F,length(A),A]);
+do_print(Out,{trace_ts,P,return_from,{M,F,A},R,Ts},N) ->
+    io:format(Out,
+              "~w: ~w, ~w:~n"
+              "Return from  : ~w:~w/~w~n"
+              "Return value :~p~n~n",
+              [N,Ts,P,M,F,A,R]);
+      
+% * every crit sent to client from lobbyist
+% * every INQUIRY rec'd by stoplight_srv     
+% * every RESPOSE rec'd by stoplight_lobbyist 
+
+do_print(Out,{trace,P,send,
+        {crit,Req,APid},
+        P2}, N) ->
+    io:format(Out, "crit ~p~n", [{crit, Req, APid}]);
+
+do_print(Out,{trace,P,send,
+        {'$gen_cast',{mutex,inquiry,Req}},
+        P2}, N) ->
+    io:format(Out, "INQUIRY ~p~n", [{'$gen_cast',{mutex,inquiry,Req}}]);
+
+do_print(Out,{trace,P,send,
+        {'$gen_cast',{mutex,response,Req,AnotherPid}}, 
+        P2}, N) ->
+    io:format(Out, "RESPONSE ~p~n", [{'$gen_cast',{mutex,response,Req,AnotherPid}}]);
+
+do_print(Out,{trace,P,send,Message,Info}, N) ->
+    % io:format(Out, "send ~p", [Message]);
+    ok;
+
+% {trace,<6057.116.0>,send, 
+%     {'$gen_call',{<6057.116.0>,#Ref<6057.0.0.241>},petition},
+%           {<6057.110.0>,{proc_lib,init_p,5},'32546@YPCMC05684'}}
+
+do_print(Out,Ignored,N) ->
+    % io:format(Out, "---~p---~n", [Ignored]),
+    ok.
