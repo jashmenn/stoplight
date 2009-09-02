@@ -7,6 +7,7 @@
 % -define(TRACEP(Pid), ttb:p(Pid, [call,send,messages,sos,sol])).
 -define(TRACEP(Pid), ttb:p(Pid, [call,send,sos,sol])).
 
+
 %% Include ms_transform.hrl so that I can use dbg:fun2ms/2 to
 %% generate match specifications.
 -include_lib("stdlib/include/ms_transform.hrl").
@@ -81,7 +82,6 @@ node_benchmark_test_() ->
 
          lists:map(fun(_I) ->
                      spawn_link(fun() -> 
-                     % timer:sleep(random:uniform(300)),
                         lock_tester:try_for(apple, ListenerPool),
                         Parent ! {done, self()}
              end)
@@ -91,7 +91,9 @@ node_benchmark_test_() ->
          flush_buffer(3),
 
          ttb:stop(),
-         ttb:format("trace"),
+         ttb:format("trace", [{handler,{{stoplight_benchmarking_tracer,print},3}}]),
+         % io:format(user, "f ~p~n", [TraceState]),
+         % timer:sleep(1000),
 
          {ok}
       end

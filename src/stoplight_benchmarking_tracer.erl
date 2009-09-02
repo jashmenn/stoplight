@@ -1,20 +1,20 @@
 %% Stoplight lobbyist
 -module(stoplight_benchmarking_tracer).
 -include_lib("../include/defines.hrl").
-% ttb:format("trace", [{handler,{{stoplight_benchmarking_tracer,print},undef}}]).
+% ttb:format("trace", [{handler,{{stoplight_benchmarking_tracer,print},NumClients}}]).
 
 -compile(export_all).
--record(state, {crit, inquiry, response}). % counts of each
+-record(state, {crit, inquiry, response, clients}). % counts of each
 
 %%% --------Internal functions--------
 %%% ----------------------------------
 %%% Format handler
 
 print(Out,end_of_trace,_TI,State) ->
-    io:format(Out, "crit ~10B | INQUIRY ~10B | RESPONSE ~10B ~n", [State#state.crit, State#state.inquiry, State#state.response]),
+    io:format(user, "~nclients ~10B | crit ~10B | INQUIRY ~10B | RESPONSE ~10B ~n", [State#state.clients, State#state.crit, State#state.inquiry, State#state.response]),
     State;
-print(Out,Trace,TI,undef) ->
-    InitialState = #state{ crit=0, inquiry=0, response=0 },
+print(Out,Trace,TI,Clients) when is_integer(Clients) ->
+    InitialState = #state{ crit=0, inquiry=0, response=0, clients=Clients },
     print(Out,Trace,TI,InitialState);
 print(Out,Trace,_TI,State) when is_record(State, state) ->
     NewState = do_print(Out,Trace,State),

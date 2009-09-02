@@ -410,8 +410,8 @@ inquiry_delay_time(State) ->
     Max  = 3000, % 3 seconds 
     case stoplight_util:floor(stoplight_util:random_exponential_delay(500, Ntry, Max)) of
        1 -> 0;
-       % Other -> Other
-       Other -> 0
+       Other -> Other
+       % Other -> 0 % disable the sleep
     end.
 
 has_request_ttl_expired(State) ->
