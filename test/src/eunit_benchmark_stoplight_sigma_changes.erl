@@ -17,34 +17,6 @@
 % * every INQUIRY rec'd by stoplight_srv     
 % * every RESPOSE rec'd by stoplight_lobbyist 
 
-% setup() ->
-%     ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
-%     ttb:p(self(), [call,send]),
-
-%     {ok, Node1Pid} = stoplight_srv:start_named(stoplight_srv_local, {seed, undefined}),
-%     {ok, Node2Pid} = stoplight_srv:start_named(node2, {seed, Node1Pid}),
-%     {ok, Node3Pid} = stoplight_srv:start_named(node3, {seed, Node1Pid}),
-
-%     {ok, ListenerPid} = stoplight_listener:start_link([], []),
-%     ?assert(is_pid(ListenerPid)),
-
-%     lists:map(fun(Pid) ->
-%        ttb:p(Pid, [call,send,messages,sos,sol])
-%     end, [ListenerPid, Node1Pid, Node2Pid, Node3Pid]),
-
-%     MS1 = [{'_',[],[{return_trace},{message,{caller}}]}], % dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
-%     ttb:tpl(gen_server, loop, MS1),
-%     ttb:tpl(gen_server, cast, MS1),
-
-%     [stoplight_listener, stoplight_srv_local, node2, node3].
-
-% teardown(Servers) ->
-%     ttb:stop(),
-%     ?stop_and_unregister_servers(Servers),
-%     ?stop_and_unregister_globals,
-%     ttb:format("trace"),
-%     ok.
-
 setup2() ->
     crypto:start(),
     ok.
@@ -73,7 +45,7 @@ node_benchmark_test_() ->
       {timeout, 300, 
       fun () ->
          erlang:monitor(process,self()),
-         ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}, {handler,{{stoplight_util,print},0}} ]),
+         ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
          ?TRACEP(self()),
 
          MS1 = [{'_',[],[{return_trace},{message,{caller}}]}], % dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
@@ -109,23 +81,14 @@ node_benchmark_test_() ->
 
          lists:map(fun(_I) ->
                      spawn_link(fun() -> 
-                     timer:sleep(random:uniform(300)),
-                        lock_tester:try_for(tree, ListenerPool),
-                        Parent ! {done, self()}
-             end)
-          end,
-         lists:seq(1, 3)),
-
-         lists:map(fun(_I) ->
-                     spawn_link(fun() -> 
-                     timer:sleep(random:uniform(300)),
+                     % timer:sleep(random:uniform(300)),
                         lock_tester:try_for(apple, ListenerPool),
                         Parent ! {done, self()}
              end)
           end,
          lists:seq(1, 3)),
 
-         flush_buffer(6),
+         flush_buffer(3),
 
          ttb:stop(),
          ttb:format("trace"),

@@ -17,8 +17,9 @@ try_for(Name, ListenerPool) ->
                     % ?TRACE("got crit", self()),
                     case file:write_file(Filename, []) of
                         ok -> 
-                            timer:sleep(random:uniform(1000)),
+                            % timer:sleep(random:uniform(1000)),
                             % ?TRACE("releasing", Filename),
+                            timer:sleep(1000),
                             ok = file:delete(Filename),
                             ok = stoplight_client:release(Lobbyist);
                         {error, Reason} -> 

@@ -94,13 +94,7 @@ do_print(Out,{trace,P,send,
     io:format(Out, "RESPONSE ~p~n", [{'$gen_cast',{mutex,response,Req,AnotherPid}}]);
 
 do_print(Out,{trace,P,send,Message,Info}, N) ->
-    % io:format(Out, "send ~p", [Message]);
     ok;
 
-% {trace,<6057.116.0>,send, 
-%     {'$gen_call',{<6057.116.0>,#Ref<6057.0.0.241>},petition},
-%           {<6057.110.0>,{proc_lib,init_p,5},'32546@YPCMC05684'}}
-
 do_print(Out,Ignored,N) ->
-    % io:format(Out, "---~p---~n", [Ignored]),
     ok.
