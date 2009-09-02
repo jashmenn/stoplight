@@ -1,14 +1,23 @@
--module(eunit_stoplight_client).
+-module(eunit_benchmark_stoplight_sigma_changes).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("../../include/defines.hrl").
 -include_lib("../include/stoplight_eunit_helpers.hrl").
--include_lib("stdlib/include/ms_transform.hrl").
 -define(LOCK_DIR, "/tmp/stoplight_locks").
+% -define(TRACEP(Pid), ttb:p(Pid, [call,send,messages,sos,sol])).
+-define(TRACEP(Pid), ttb:p(Pid, [call,send,sos,sol])).
 
+%% Include ms_transform.hrl so that I can use dbg:fun2ms/2 to
+%% generate match specifications.
+-include_lib("stdlib/include/ms_transform.hrl").
+
+% subtract out m responses for every crit
+% what we need to trace:
+% * every crit sent to client from lobbyist
+% * every INQUIRY rec'd by stoplight_srv     
+% * every RESPOSE rec'd by stoplight_lobbyist 
 setup() ->
-    ?TRACE("setup", val),
-    register(eunit_stoplight_client, self()),
+    % register(eunit_stoplight_client, self()),
     % ttb:tracer(node(), [{file,"trace/ttb"},{process_info,false}]),
     ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
     % ttb:p(self(), [call,send,messages,sos,sol]),
@@ -32,72 +41,11 @@ setup() ->
     [stoplight_listener, stoplight_srv_local, node2, node3].
 
 teardown(Servers) ->
-    ?TRACE("teardown", val),
     ttb:stop(),
     ?stop_and_unregister_servers(Servers),
     ?stop_and_unregister_globals,
     ttb:format("trace"),
     ok.
-
-node_timer_test_dont() ->
-{
-      setup, fun setup2/0, fun teardown2/1,
-      {timeout, 300, 
-      fun () ->
-        Pid = spawn(stoplight_util,f,[]),
-        ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
-        % ttb:p(Pid, [call,send]),
-        % ttb:p(Pid, [call,send,messages,sos,sol]),
-        % MS1 = dbg:fun2ms(fun(_) -> dbg:return_trace(),dbg:message(dbg:caller()) end),
-        MS1 = [{'_',[],[{return_trace},{message,{caller}}]}],
-        ttb:tp(erlang, now, MS1),
-        Pid ! self(),
-        ttb:stop(),
-        ttb:format("trace"),
-        % ttb:format("nonode@nohost-ttb"),
-        {ok}
-      end
-      }
- }.
-
-node_state_test_() ->
-  { setup, fun setup/0, fun teardown/1,
-      {timeout, 300, 
-      fun () ->
-
-         {ok, _State} = gen_server:call(stoplight_listener, state),
-
-         {crit, Lobbyist} = stoplight_client:lock(tree, 10),
-         register(tree_lobbyist, Lobbyist),
-
-         Parent = self(),
-
-         Pid1 = spawn_link(fun() ->
-           {Resp, Lob2} = stoplight_client:lock(tree, 10),
-           ?assertEqual(no, Resp),
-           ok = stoplight_client:release(Lob2),
-           Parent ! {self(), done}
-         end),
-         receive {Pid1, done} -> ok
-         after 500 -> timeout
-         end,
-
-         Pid2 = spawn_link(fun() ->
-           {Resp2, _Lob3} = stoplight_client:lock(tree, 1000),
-           ?assertEqual(crit, Resp2),
-           Parent ! {self(), done}
-         end),
-         ok = stoplight_client:release(Lobbyist),
-         receive {Pid2, done} -> ok
-         after 500 -> timeout
-         end,
-
-         
-         {ok}
-      end
-      }
-  }.
-
 
 setup2() ->
     crypto:start(),
@@ -107,11 +55,46 @@ teardown2(_) ->
     crypto:stop(),
     ok.
 
-node_fuzz_one_test_() ->
+flush_buffer(0) ->
+    ok;
+flush_buffer(N) -> 
+    receive 
+        {done, _Pid} ->
+            % ?TRACE("Pid done ", [Pid, left, N-1]),
+            flush_buffer(N-1);
+        _Any -> 
+            flush_buffer(N) 
+    after 5000 -> 
+            true 
+    end. 
+
+
+node_benchmark_test_() ->
   {
       setup, fun setup2/0, fun teardown2/1,
       {timeout, 300, 
       fun () ->
+         erlang:monitor(process,self()),
+         ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
+         ?TRACEP(self()),
+
+
+
+% 1> (<5775.137.0>) {<5775.112.0>,{erlang,apply,2},'27844@YPCMC05684'} ! {crit,
+%                                                                      {req,
+%                                                                       tree,
+%                                                                       <5775.137.0>,
+%                                                                       1251900580,
+%                                                                       5000},
+%                                                                      <5775.137.0>}
+
+
+         % MS1 = [{'_',[],[{return_trace},{message,{caller}}]}], % dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
+         MS1 = [{[crit,'_','_'],
+                 [],
+                 [{return_trace},{message,{caller}}]}], 
+         ttb:tpl(gen_server, cast, MS1),
+
          os:cmd("rm -rf " ++ ?LOCK_DIR),
 
          {ok, Node1Pid} = stoplight_srv:start_named(stoplight_srv_local, {seed, undefined}),
@@ -147,7 +130,7 @@ node_fuzz_one_test_() ->
                         Parent ! {done, self()}
              end)
           end,
-         lists:seq(1, 20)),
+         lists:seq(1, 3)),
 
          lists:map(fun(_I) ->
                      spawn_link(fun() -> 
@@ -156,29 +139,17 @@ node_fuzz_one_test_() ->
                         Parent ! {done, self()}
              end)
           end,
-         lists:seq(1, 20)),
+         lists:seq(1, 3)),
 
+         flush_buffer(6),
 
-         flush_buffer(40),
+         ttb:stop(),
+         % ttb:format("trace"),
 
          {ok}
       end
       }
   }.
-
-
-flush_buffer(0) ->
-    ok;
-flush_buffer(N) -> 
-    receive 
-        {done, _Pid} ->
-            % ?TRACE("Pid done ", [Pid, left, N-1]),
-            flush_buffer(N-1);
-        _Any -> 
-            flush_buffer(N) 
-    after 5000 -> 
-            true 
-    end. 
 
 
 

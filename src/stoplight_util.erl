@@ -43,3 +43,12 @@ random_exponential_delay(InitialTimeout, Ntry, Max) ->
 random_element(List) ->
     I = crypto:rand_uniform(1, length(List)),
     lists:nth(I, List).
+
+f() ->
+   receive 
+      From when pid(From) -> 
+         Now = erlang:now(),
+         From ! {self(),Now}
+   end. 
+
+
