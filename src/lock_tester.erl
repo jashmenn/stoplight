@@ -5,32 +5,39 @@
 -define(LOCK_DIR, "/tmp/stoplight_locks").
 
 try_for(Name, ListenerPool) ->
+    try_for(Name, ListenerPool, 5000, 1000).
+
+try_for(Name, ListenerPool, Timeout, Sleeptime) ->
     file:make_dir(?LOCK_DIR),
     Filename = ?LOCK_DIR ++ "/" ++ atom_to_list(Name),
-    case filelib:is_file(Filename) of 
-        true ->  exit(list_to_atom("file_exists-" ++ atom_to_list(Name)));
-        false -> 
-            RandomListener = stoplight_util:random_element(ListenerPool),
-            {Resp, Lobbyist} = stoplight_client:lock(Name, RandomListener, 5000),
-            case Resp of
-                crit ->
-                    % ?TRACE("got crit", self()),
-                    % whoa whoa whoa. shouldn't this check HERE if the file already exists??? b/c HERE is where we got the crit
+    RandomListener = stoplight_util:random_element(ListenerPool),
+    {Resp, Lobbyist} = stoplight_client:lock(Name, RandomListener, Timeout),
+    % ?TRACE("trying for", [Name, lobbyist, Lobbyist]),
+    case Resp of
+        crit ->
+            % ?TRACE("got crit", self()),
+
+            case filelib:is_file(Filename) of 
+                true ->  exit(list_to_atom("file_exists-" ++ atom_to_list(Name)));
+                false -> 
                     case file:write_file(Filename, []) of
                         ok -> 
                             % timer:sleep(random:uniform(1000)),
                             % ?TRACE("releasing", Filename),
-                            timer:sleep(1000),
-                            ok = file:delete(Filename),
+                            timer:sleep(Sleeptime),
+                            Deleted = file:delete(Filename),
+                            % ?TRACE("Deleted", [Deleted, Filename]),
+                            ok = Deleted,
                             ok = stoplight_client:release(Lobbyist);
                         {error, Reason} -> 
                             exit(Reason);
                         Other ->
                             exit(Other)
-                    end;
-                no -> 
-                    % ?TRACE("got no", self()),
-                    nope % didnt get it, oh well
-            end
+
+                    end
+            end;
+        no -> 
+            % ?TRACE("got no", self()),
+            nope % didnt get it, oh well
     end,
     ok.

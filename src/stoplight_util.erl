@@ -33,9 +33,8 @@ random_exponential_delay(InitialTimeout, Ntry, Max) ->
     R = random:uniform() + 1,
     F = 2,
     Try = lists:min([Ntry, 1000]),
-    Base = floor(R * InitialTimeout * F),
-    try math:pow(Base, Try) of
-        Calculated -> lists:min([Calculated, Max])
+    try math:pow(F, Try) of
+        Raised -> lists:min([floor(R * InitialTimeout * Raised), Max])
     catch
         _:_ -> Max
     end.

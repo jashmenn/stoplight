@@ -43,7 +43,7 @@ flush_buffer(N) ->
 node_benchmark_test_() ->
   {
       setup, fun setup2/0, fun teardown2/1,
-      {timeout, 300, 
+      {timeout, 3000, 
       fun () ->
 
           %% create a pool of 5 servers
@@ -52,16 +52,26 @@ node_benchmark_test_() ->
           %% create a pool of M clients all trying to get a lock on apple
          Parent = self(),
                  io:format(user, "~n", []),
+                 % io:format(user, "clients,run,crit,REQUEST,YIELD,RELEASE,INQUIRY,RESPONSE~n", []), 
+                 io:format(user, "~5s,~5s,~5s,~5s,~5s,~5s,~5s,~5s ~n", 
+                     ["clients",
+                         "run",
+                         "crits",
+                         "REQUEST",
+                         "YIELD",
+                         "RELEASE",
+                         "INQUIRY",
+                         "RESPONSE"]),
 
          lists:map(fun(NumClients) ->
              lists:map(fun(RunCount) ->
 
-                 io:format(user, "Clients ~p run ~p ... ", [NumClients, RunCount]),
+                 io:format(user, "~5B,~5B,", [NumClients, RunCount]),
                  [ListenerPool, ServerPool] = start_run(),
 
                  lists:map(fun(_I) ->
                              spawn_link(fun() -> 
-                                lock_tester:try_for(apple, ListenerPool),
+                                lock_tester:try_for(apple, ListenerPool, 10000, 100),
                                 Parent ! {done, self()}
                      end)
                   end,
@@ -73,10 +83,12 @@ node_benchmark_test_() ->
 
 
              end,
-             lists:seq(1, 3))
+             % lists:seq(1, 3))
+             lists:seq(1, 1))
          end,
          % lists:seq(1, 3)),
          [1, 5, 10, 15]),
+         % [5]),
 
          {ok}
       end
@@ -86,8 +98,8 @@ node_benchmark_test_() ->
 
 start_run() ->
      os:cmd("rm -rf trace/* && mkdir -p trace"),
-     erlang:monitor(process,self()),
-     ttb:tracer(node(), [{file,"trace/ttb"},{process_info,true}]),
+     % erlang:monitor(process,self()),
+     ttb:tracer(node(), [{file,"trace/ttb"},{process_info,false}]),
      ?TRACEP(self()),
 
      MS1 = [{'_',[],[{return_trace},{message,{caller}}]}], % dbg:fun2ms(fun(_) -> return_trace(),message(caller()) end),
@@ -109,11 +121,11 @@ start_run() ->
      {ok, Listener5Pid} = stoplight_listener:start_named_link(listener5, [], []),
      ListenerPool = [Listener1Pid, Listener2Pid, Listener3Pid, Listener4Pid, Listener5Pid],
 
-     erlang:monitor(process, Listener1Pid),
-     erlang:monitor(process, Listener2Pid),
-     erlang:monitor(process, Listener3Pid),
-     erlang:monitor(process, Listener4Pid),
-     erlang:monitor(process, Listener5Pid),
+     % erlang:monitor(process, Listener1Pid),
+     % erlang:monitor(process, Listener2Pid),
+     % erlang:monitor(process, Listener3Pid),
+     % erlang:monitor(process, Listener4Pid),
+     % erlang:monitor(process, Listener5Pid),
 
      [ListenerPool, ServerPool].
 
@@ -123,10 +135,10 @@ start_run() ->
 
      ttb:stop(),
      ttb:format("trace", [{handler,{{stoplight_benchmarking_tracer,print},3}}]),
-     ?sleep(2000),
      lists:map(fun(P) ->
                  exit(P, kill)
          end, NodesToStop),
 
+     ?sleep(4000),
      ok.
 

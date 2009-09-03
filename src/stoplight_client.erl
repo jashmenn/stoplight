@@ -16,6 +16,7 @@ lock(Name, Listener, Timeout) ->
     {ok, LobPid} = gen_server:call(Listener, {try_mutex, Name, Timeout}),
     receive
        {crit, Request, LobbyPid} -> 
+           % ?TRACE("crit", [lobbyist,LobbyPid]),
            {crit, LobbyPid}
     after Timeout -> 
        release(LobPid),
@@ -23,6 +24,7 @@ lock(Name, Listener, Timeout) ->
     end.
 
 release(Lobbyist) ->
+    % ?TRACE("release", [lobbyist,Lobbyist]),
     ok = gen_server:call(Lobbyist, release).
 
 find_listener() ->
