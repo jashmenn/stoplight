@@ -166,6 +166,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Description: sends request to all known servers
 %%--------------------------------------------------------------------
 handle_petition(State) ->
+    % ?TRACE("petitioning", State#state.request),
     multicast_servers({mutex, request, State#state.request}, State),
     ok.
 
@@ -413,7 +414,8 @@ inquiry_delay_time(State) ->
             % 50
             % 250
             % 500
-            Delay = stoplight_util:floor(stoplight_util:random_exponential_delay(50, Ntry, Max)),
+            % Delay = stoplight_util:floor(stoplight_util:random_exponential_delay(50, Ntry, Max)),
+            Delay = 1000,
             % ?TRACE("delay is", [t,Ntry,delay,Delay]),
             case Delay of
                1 -> 0;
