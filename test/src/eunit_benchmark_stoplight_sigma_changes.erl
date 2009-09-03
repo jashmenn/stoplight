@@ -56,7 +56,7 @@ node_benchmark_test_() ->
          lists:map(fun(NumClients) ->
              lists:map(fun(RunCount) ->
 
-                 io:format(user, "Testing ~p run ~p ... ", [NumClients, RunCount]),
+                 io:format(user, "Clients ~p run ~p ... ", [NumClients, RunCount]),
                  [ListenerPool, ServerPool] = start_run(),
 
                  lists:map(fun(_I) ->
@@ -65,7 +65,7 @@ node_benchmark_test_() ->
                                 Parent ! {done, self()}
                      end)
                   end,
-                 lists:seq(1, 3)),
+                 lists:seq(1, NumClients)),
 
                  flush_buffer(3),
                  stop_run(lists:append(ListenerPool, ServerPool)),
@@ -75,7 +75,8 @@ node_benchmark_test_() ->
              end,
              lists:seq(1, 3))
          end,
-         lists:seq(1, 3)),
+         % lists:seq(1, 3)),
+         [1, 5, 10, 15]),
 
          {ok}
       end
@@ -122,7 +123,7 @@ start_run() ->
 
      ttb:stop(),
      ttb:format("trace", [{handler,{{stoplight_benchmarking_tracer,print},3}}]),
-     ?sleep(100),
+     ?sleep(2000),
      lists:map(fun(P) ->
                  exit(P, kill)
          end, NodesToStop),

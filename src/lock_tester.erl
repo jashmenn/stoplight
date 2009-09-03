@@ -15,6 +15,7 @@ try_for(Name, ListenerPool) ->
             case Resp of
                 crit ->
                     % ?TRACE("got crit", self()),
+                    % whoa whoa whoa. shouldn't this check HERE if the file already exists??? b/c HERE is where we got the crit
                     case file:write_file(Filename, []) of
                         ok -> 
                             % timer:sleep(random:uniform(1000)),
@@ -23,7 +24,9 @@ try_for(Name, ListenerPool) ->
                             ok = file:delete(Filename),
                             ok = stoplight_client:release(Lobbyist);
                         {error, Reason} -> 
-                            exit(Reason)
+                            exit(Reason);
+                        Other ->
+                            exit(Other)
                     end;
                 no -> 
                     % ?TRACE("got no", self()),
