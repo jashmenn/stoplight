@@ -1,7 +1,11 @@
 -define(stop_and_unregister_servers(Servers),
     ((fun () ->
         lists:map(fun(Pname) -> 
-            Pid = whereis(Pname),
+            % Pid = whereis(Pname),
+            Pid = case is_atom(Pname) of
+                true -> whereis(Pname);
+                false -> Pname
+            end,
             gen_server:cast(Pid, stop), 
             try unregister(Pname)
             catch _:_ -> ok

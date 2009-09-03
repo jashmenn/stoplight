@@ -11,7 +11,7 @@
 %%% Format handler
 
 print(Out,end_of_trace,_TI,State) ->
-    io:format(user, "~nclients ~10B | crit ~10B | INQUIRY ~10B | RESPONSE ~10B ~n", [State#state.clients, State#state.crit, State#state.inquiry, State#state.response]),
+    io:format(user, "clients ~10B | crit ~10B | INQUIRY ~10B | RESPONSE ~10B ~n", [State#state.clients, State#state.crit, State#state.inquiry, State#state.response]),
     State;
 print(Out,Trace,TI,Clients) when is_integer(Clients) ->
     InitialState = #state{ crit=0, inquiry=0, response=0, clients=Clients },
