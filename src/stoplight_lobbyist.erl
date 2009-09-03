@@ -407,11 +407,17 @@ have_pending_inquiry_for(ServerPid, State) -> % bool()
 
 inquiry_delay_time(State) ->
     Ntry = State#state.numInquiryRounds,
-    Max  = 3000, % 3 seconds 
-    case stoplight_util:floor(stoplight_util:random_exponential_delay(500, Ntry, Max)) of
-       1 -> 0;
-       Other -> Other
-       % Other -> 0 % disable the sleep
+    Max  = 10000, % 10 seconds 
+    case Ntry > 0 of  % only delay if we've done this more than once
+        true ->
+            Delay = stoplight_util:floor(stoplight_util:random_exponential_delay(50, Ntry, Max)),
+            % ?TRACE("delay is", [t,Ntry,delay,Delay]),
+            case Delay of
+               1 -> 0;
+               Other -> Other
+               % Other -> 0 % disable the sleep
+            end;
+        false -> 0
     end.
 
 has_request_ttl_expired(State) ->
