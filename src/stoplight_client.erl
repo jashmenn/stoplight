@@ -16,9 +16,10 @@ lock(Name, Listener, Timeout) ->
     {ok, LobPid} = gen_server:call(Listener, {try_mutex, Name, Timeout}),
     receive
        {crit, Request, LobbyPid} -> 
-           % ?TRACE("crit", [lobbyist,LobbyPid]),
+           ?TRACE("crit", [lob,LobbyPid]),
            {crit, LobbyPid}
     after Timeout -> 
+       ?TRACE("timed out", [lob,LobPid]),
        release(LobPid),
        {no, LobPid}
     end.

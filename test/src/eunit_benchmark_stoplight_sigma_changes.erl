@@ -26,16 +26,20 @@ teardown2(_) ->
     crypto:stop(),
     ok.
 
-flush_buffer(0) ->
-    ok;
+
 flush_buffer(N) -> 
+    flush_buffer(N, 5000).
+
+flush_buffer(0, _Timeout) ->
+    ok;
+flush_buffer(N, Timeout) -> 
     receive 
         {done, _Pid} ->
             % ?TRACE("Pid done ", [Pid, left, N-1]),
-            flush_buffer(N-1);
+            flush_buffer(N-1, Timeout);
         _Any -> 
-            flush_buffer(N) 
-    after 5000 -> 
+            flush_buffer(N, Timeout) 
+    after Timeout -> 
             true 
     end. 
 
@@ -43,14 +47,13 @@ flush_buffer(N) ->
 node_benchmark_test_() ->
   {
       setup, fun setup2/0, fun teardown2/1,
-      {timeout, 3000, 
+      {timeout, 1000000, 
       fun () ->
 
           %% create a pool of 5 servers
           %% create a pool of 5 listeners
           %% create a pool of N clients all trying to get a lock on tree
           %% create a pool of M clients all trying to get a lock on apple
-         Parent = self(),
                  io:format(user, "~n", []),
                  % io:format(user, "clients,run,crit,REQUEST,YIELD,RELEASE,INQUIRY,RESPONSE~n", []), 
                  io:format(user, "~5s,~5s,~5s,~5s,~5s,~5s,~5s,~5s ~n", 
@@ -66,29 +69,36 @@ node_benchmark_test_() ->
          lists:map(fun(NumClients) ->
              lists:map(fun(RunCount) ->
 
+                 Parent = self(),
+                 Timeout = 60000,
+
                  io:format(user, "~5B,~5B,", [NumClients, RunCount]),
                  [ListenerPool, ServerPool] = start_run(),
 
-                 lists:map(fun(_I) ->
+                 lists:map(fun(I) ->
+                             % ?TRACE("spawning tester", I),
                              spawn_link(fun() -> 
-                                lock_tester:try_for(apple, ListenerPool, 10000, 100),
+                                % lock_tester:try_for(apple, ListenerPool, 30000, 100),
+                                lock_tester:try_for(apple, ListenerPool, Timeout, 100),
                                 Parent ! {done, self()}
                      end)
                   end,
                  lists:seq(1, NumClients)),
 
-                 flush_buffer(3),
+                 flush_buffer(NumClients, Timeout),
                  stop_run(lists:append(ListenerPool, ServerPool)),
                  ok
 
 
              end,
-             % lists:seq(1, 3))
-             lists:seq(1, 1))
+             lists:seq(1, 3))
+             % lists:seq(1, 1))
          end,
          % lists:seq(1, 3)),
-         [1, 5, 10, 15]),
-         % [5]),
+         % [1, 5, 10, 15, 30, 50, 100]),
+         % [1, 5, 10, 15]),
+         [100]),
+         % [100]),
 
          {ok}
       end

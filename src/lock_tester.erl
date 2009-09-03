@@ -11,8 +11,9 @@ try_for(Name, ListenerPool, Timeout, Sleeptime) ->
     file:make_dir(?LOCK_DIR),
     Filename = ?LOCK_DIR ++ "/" ++ atom_to_list(Name),
     RandomListener = stoplight_util:random_element(ListenerPool),
+    % ?TRACE("trying for", [Name]),
     {Resp, Lobbyist} = stoplight_client:lock(Name, RandomListener, Timeout),
-    % ?TRACE("trying for", [Name, lobbyist, Lobbyist]),
+    % ?TRACE("tried for", [Name, lobbyist, Lobbyist, resp, Resp]),
     case Resp of
         crit ->
             % ?TRACE("got crit", self()),

@@ -410,6 +410,9 @@ inquiry_delay_time(State) ->
     Max  = 10000, % 10 seconds 
     case Ntry > 0 of  % only delay if we've done this more than once
         true ->
+            % 50
+            % 250
+            % 500
             Delay = stoplight_util:floor(stoplight_util:random_exponential_delay(50, Ntry, Max)),
             % ?TRACE("delay is", [t,Ntry,delay,Delay]),
             case Delay of
