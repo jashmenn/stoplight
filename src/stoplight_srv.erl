@@ -195,15 +195,29 @@ handle_mutex_yield(Req, State) ->
     ?TRACE("yielding request", Req),
     case is_request_the_current_owner_exactly(Req, State) of
         true ->
+            % this yield handling is wrong,
+            % 1) dont append yield to the back of the queue, the yielded should be the next to last
+            % 2) poping the queue shouldn't sort by timestamp, sorts should be done on insert. 
+
+            % second to last
+            % {ok, State1} = promote_request_in_queue(Req#req.name, State),
+            % CurrentOwner = current_owner_for_name_short(Req#req.name, State1),
+            % {ok, State2} = append_request_to_queue(Req, State1),
+
+            % appending this to the queue, really all that is doing is moving it back to the front of the queue (not nec, read below)
+            % hrm... why? b/c its being sorted. so the same reqeust is moved to the front each time. 
+            % so someone yields their request, but it ends up being the same request as the current owner anyhow (nope, read more)
+            %
+            % this is right actually! b/c if the request yielded is NOT the
+            % earliest request then things will be ordered properly
             {ok, State1} = append_request_to_queue(Req, State),
             {ok, State2} = promote_request_in_queue(Req#req.name, State1),
             CurrentOwner = current_owner_for_name_short(Req#req.name, State2),
-            % gen_cluster:cast(CurrentOwner#req.owner, {mutex, response, CurrentOwner}),
+
             send_response(CurrentOwner#req.owner, CurrentOwner),
             case CurrentOwner#req.owner =:= Req#req.owner of
                 true -> ok;
                 false -> 
-                    % gen_cluster:cast(Req#req.owner, {mutex, response, CurrentOwner})
                     send_response(Req#req.owner, CurrentOwner)
             end,
             {noreply, State2};
@@ -365,7 +379,7 @@ delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
                 false ->
                     {ok, NewState} = promote_request_in_queue(Req#req.name, State),
                     CurrentOwner = current_owner_for_name_short(Req#req.name, NewState),
-                    ?TRACE("promoted CurrentOwner", [CurrentOwner, to, CurrentOwner#req.owner]),
+                    % ?TRACE("promoted CurrentOwner", [CurrentOwner, to, CurrentOwner#req.owner]),
                     % if we cast back saying they are the current owner, that
                     % technically isn't true at this point, bc NewState hasn't
                     % been delivered up the chain. However, gen_server won't
@@ -397,6 +411,9 @@ promote_request_in_queue(QName, State) -> % {ok, NewState}
             {ok, State3} = set_current_owner(Request, State2),
             {ok, State3}
     end,
+    % just trace that this happened
+    CurrentOwner = current_owner_for_name_short(QName, NewState),
+    ?TRACE("promoted CurrentOwner", [CurrentOwner, to, CurrentOwner#req.owner]),
     {ok, NewState}.
 
 pop_queue(QName, State) -> % {ok, Request, NewState} |
@@ -405,6 +422,7 @@ pop_queue(QName, State) -> % {ok, Request, NewState} |
     Q = queue_for_name(QName, State),
     case Q of
         {ok, Queue} -> 
+           % Queue0 = stoplight_request:sort_by_timestamp(Queue),
            [Head|Q1] = Queue,
            ReqQs1 = dict:store(QName, Q1, ReqQs0),
            NewState = State#srv_state{reqQs=ReqQs1},
@@ -433,10 +451,24 @@ set_current_owner(Req, State) -> % {ok, NewState}
     {ok, NewState}.
 
 append_request_to_queue(Req, State) -> % {ok, NewState}
-    Q0  = State#srv_state.reqQs,
-    Q1  = dict:append(Req#req.name, Req, Q0),
-    NewState = State#srv_state{reqQs=Q1},
+    % add the request to the queue for that name
+    D0  = State#srv_state.reqQs,
+    D1  = dict:append(Req#req.name, Req, D0),
+    NewState = State#srv_state{reqQs=D1},
+    {ok, NewState1} = sort_queue_for_name(Req#req.name, NewState),
+    {ok, NewState1}.
+    % {ok, NewState}.
+
+sort_queue_for_name(Name, State) -> % {ok, NewState}
+    D0 = State#srv_state.reqQs,
+    Q0 = queue_for_name_short(Name, State),
+    Q1 = stoplight_request:sort_by_timestamp(Q0),
+    % Q1 = Q0,
+    D1 = dict:store(Name, Q1, D0), 
+    NewState = State#srv_state{reqQs=D1},
     {ok, NewState}.
+
+% prepend_request_
 
 empty_request() ->
     #req{name=undefined, owner=undefined, timestamp=undefined}.

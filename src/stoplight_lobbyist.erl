@@ -29,7 +29,7 @@
 -compile(export_all).
 
 %% Macros
--record(state, {name, pid, client, servers, responses, request, pendingInquiries, numInquiryRounds}).
+-record(state, {name, pid, client, servers, responses, request, pendingInquiries, numInquiryRounds, pendingYields}).
 
 -define(tupleSearchVal(Key, TupleList), 
     ((fun (K, TL) ->
@@ -72,9 +72,9 @@ init(Args) ->
     Ttl       = ?tupleSearchVal(request_ttl, Args),
     Servers   = get_servers(Args),
 
-    Responses = servers_dict_init(Servers),
+    Responses        = servers_dict_init(Servers),
     PendingInquiries = servers_dict_init(Servers),
-    % Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch(), ttl=Ttl},
+    PendingYields    = servers_dict_init(Servers),
     Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:now_us(), ttl=Ttl},
 
     InitialState = #state{
@@ -84,6 +84,7 @@ init(Args) ->
                       request=Request,
                       responses=Responses,
                       pendingInquiries=PendingInquiries,
+                      pendingYields=PendingYields,
                       numInquiryRounds=0
                    },
     % ?TRACE("starting new lobbyist", [self, self(), client, Client, name, Lockname]),
@@ -279,7 +280,8 @@ do_lobby_for_more_support([ServerPid|Rest], State) -> % {ok, NewState}
             if
                 Response#req.owner =:= Request#req.owner -> 
                     ?TRACE("yielding my request", [Request, from, ServerPid, dict:to_list(R0)]),
-                    gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
+                     gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
+                    % yield_if_needed(ServerPid, State); % or basic_yield(ServerPid, State)
                 RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request}), {ok, State};
                 true                                     -> send_inquiry_if_needed(ServerPid, State)
             end;
@@ -293,6 +295,16 @@ do_lobby_for_more_support([ServerPid|Rest], State) -> % {ok, NewState}
 
 do_lobby_for_more_support([], State) -> % {ok, NewState}
     {ok, State}.
+
+% sub this function out for old-style yield
+% basic_yield(ServerPid, State) -> % {ok, NewState}
+%     ?TRACE("yielding my request", [Request, from, ServerPid, dict:to_list(R0)]),
+%     gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
+
+% yield_if_needed(ServerPid, State) -> % {ok, NewState}
+    % ?TRACE("yielding my request", [Request, from, ServerPid, dict:to_list(R0)]),
+    % gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
+
 
 send_inquiry_if_needed(ServerPid, State) -> % {ok, NewState}
     Request = State#state.request,

@@ -275,14 +275,16 @@ lock_holder_failing_test_() ->
          gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req0 -> ok end),
          gen_cluster:cast(node1, {mutex, request, Req1}),
 
-         {ok, _CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}), % sync
+         {ok, CurrentOwner1} = gen_cluster:call(node1, {current_owner, food}), % sync
          gen_server_mock:assert_expectations(Mock),
+         ?assertEqual(Req0, CurrentOwner1),
 
          % Mock2 should expect to get a response once Mock crashes
          gen_server_mock:expect_cast(Mock2, fun({mutex, response, R, _From}, _State) when R =:= Req1 -> ok end),
          gen_server_mock:crash(Mock),
 
          % sync
+         timer:sleep(1000),
          {ok, _} = gen_cluster:call(node1, {current_owner, food}),
          {ok, CurrentOwner3} = gen_cluster:call(node1, {current_owner, food}),
          ?assertEqual(Req1, CurrentOwner3),
