@@ -192,6 +192,7 @@ handle_mutex_inquiry(Req, State) ->
     end.
 
 handle_mutex_yield(Req, State) ->
+    ?TRACE("yielding request", Req),
     case is_request_the_current_owner_exactly(Req, State) of
         true ->
             {ok, State1} = append_request_to_queue(Req, State),
@@ -357,12 +358,14 @@ queue_for_name_short(Name, State) -> % Queue | undefined
 
 
 delete_request(Req, State) -> % {ok, CurrentOwner, NewState}
+    ?TRACE("deleting request", Req),
     case is_request_the_current_owner_exactly(Req, State) of
         true -> 
             case is_queue_empty(Req#req.name, State) of 
                 false ->
                     {ok, NewState} = promote_request_in_queue(Req#req.name, State),
                     CurrentOwner = current_owner_for_name_short(Req#req.name, NewState),
+                    ?TRACE("promoted CurrentOwner", [CurrentOwner, to, CurrentOwner#req.owner]),
                     % if we cast back saying they are the current owner, that
                     % technically isn't true at this point, bc NewState hasn't
                     % been delivered up the chain. However, gen_server won't
@@ -442,6 +445,7 @@ empty_request_named(Name) ->
     #req{name=Name, owner=undefined, timestamp=undefined}.
 
 send_response(Pid, CurrentOwner) ->
+    % ?TRACE("casting response", [to,Pid,response,CurrentOwner]),
     gen_server:cast(Pid, {mutex, response, CurrentOwner, self()}).
 
 % for now, just to a brute search. a refactoring would keep a dict to lookup

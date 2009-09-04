@@ -28,6 +28,12 @@ unix_seconds_since_epoch() ->
     UnixEpoch = calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}),
     LocalDateTime - UnixEpoch.
 
+now_us() ->
+    now_us(erlang:now()).
+
+now_us({MegaSecs,Secs,MicroSecs}) -> 
+        (MegaSecs*1000000 + Secs)*1000000 + MicroSecs. 
+
 % delay = MIN( Random * InitialTimeout * 2 ^ Ntry , Max )
 random_exponential_delay(InitialTimeout, Ntry, Max) -> 
     R = random:uniform() + 1,

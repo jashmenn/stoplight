@@ -4,7 +4,9 @@
 -define (SERVER_GLOBAL, stoplight_srv).
 
 -define (TRACE(X, M), case ?DEBUG of
-  true -> io:format(user, "TRACE ~p:~p ~p ~p ~p~n", [?MODULE, ?LINE, self(), X, M]);
+  % true -> io:format(user, "~p TRACE ~p:~p ~p ~p ~p~n", [stoplight_util:now_us(), ?MODULE, ?LINE, self(), X, M]);
+  true -> io:format(user, "~170p~n", [["TRACE", stoplight_util:now_us(), ?MODULE, ?LINE, self(), X, M]]);
+  % true -> io_lib:print(io_lib:format("~p TRACE ~p:~p ~p ~p ~p~n", [stoplight_util:now_us(), ?MODULE, ?LINE, self(), X, M]), 1, 170, -1);
   false -> ok
 end).
 

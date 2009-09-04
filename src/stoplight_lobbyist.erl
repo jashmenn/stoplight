@@ -74,7 +74,8 @@ init(Args) ->
 
     Responses = servers_dict_init(Servers),
     PendingInquiries = servers_dict_init(Servers),
-    Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch(), ttl=Ttl},
+    % Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:unix_seconds_since_epoch(), ttl=Ttl},
+    Request   = #req{name=Lockname, owner=self(), timestamp=stoplight_util:now_us(), ttl=Ttl},
 
     InitialState = #state{
                       pid=self(),
@@ -166,17 +167,18 @@ code_change(_OldVsn, State, _Extra) ->
 %% Description: sends request to all known servers
 %%--------------------------------------------------------------------
 handle_petition(State) ->
-    % ?TRACE("petitioning", State#state.request),
+    ?TRACE("petitioning", State#state.request),
     multicast_servers({mutex, request, State#state.request}, State),
     ok.
 
 handle_release(State) ->
-    % ?TRACE("sending release to", [from, self(), to, servers(State)]),
+    ?TRACE("sending release to", [from, self(), to, servers(State)]),
     multicast_servers({mutex, release, State#state.request}, State),
     ok.
 
 % todo - test what happens when we already have crit and we get another supporting response
 handle_cast_mutex_response(CurrentOwner, From, State) -> % {ok, NewState}
+    ?TRACE("got response", [CurrentOwner, From]),
     {ok, State1} = update_responses_if_needed(CurrentOwner, From, State),
     {Resp, State2} = try_for_lock(CurrentOwner, From, State1),
     Client = State2#state.client,
@@ -270,7 +272,9 @@ do_lobby_for_more_support([ServerPid|Rest], State) -> % {ok, NewState}
         true ->
             RequestLt = request_lt(Request, Response),
             if
-                Response#req.owner =:= Request#req.owner -> gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
+                Response#req.owner =:= Request#req.owner -> 
+                    ?TRACE("yielding my request", [Request, dict:to_list(R0)]),
+                    gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
                 RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request}), {ok, State};
                 true                                     -> send_inquiry_if_needed(ServerPid, State)
             end;
@@ -409,13 +413,14 @@ have_pending_inquiry_for(ServerPid, State) -> % bool()
 inquiry_delay_time(State) ->
     Ntry = State#state.numInquiryRounds,
     Max  = 10000, % 10 seconds 
+    % Max  = 3000, % 3 seconds 
     case Ntry > 0 of  % only delay if we've done this more than once
         true ->
             % 50
             % 250
             % 500
-            % Delay = stoplight_util:floor(stoplight_util:random_exponential_delay(50, Ntry, Max)),
-            Delay = 1000,
+            Delay = stoplight_util:floor(stoplight_util:random_exponential_delay(250, Ntry, Max)),
+            % Delay = 1000,
             % ?TRACE("delay is", [t,Ntry,delay,Delay]),
             case Delay of
                1 -> 0;

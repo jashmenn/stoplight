@@ -15,13 +15,16 @@ print(Out,end_of_trace,_TI,State) ->
     % ExtraResponses = State#state.crit * 
     % the number of extra reponses is only exactly the number of inquiries if messages are delivered perfectly. 
     % io:format(user, "crit ~5B | INQUIRY ~5B | REQUEST ~5B | YIELD ~5B | RELEASE ~5B | RESPONSE ~5B ~n", 
-    io:format(user, "~7B,~7B,~7B,~7B,~7B,~7B ~n", 
+    io:format(user, "~7B,~7B,~7B,~7B,~7B,~7B,~7B ~n", 
         [length(dict:fetch_keys(State#state.crits)),
             State#state.request, 
             State#state.yield, 
             State#state.release,
             State#state.inquiry, 
-            State#state.response]),
+            State#state.response,
+            
+            State#state.yield + State#state.inquiry + State#state.response
+        ]),
     State;
 print(Out,Trace,TI,Clients) when is_integer(Clients) ->
     InitialState = #state{ crit=0, inquiry=0, response=0, request=0, yield=0, release=0, clients=Clients, crits=dict:new()},

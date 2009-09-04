@@ -57,7 +57,7 @@ node_benchmark_test_() ->
           %% create a pool of M clients all trying to get a lock on apple
                  io:format(user, "~n", []),
                  % io:format(user, "clients,run,crit,REQUEST,YIELD,RELEASE,INQUIRY,RESPONSE~n", []), 
-                 io:format(user, "~7s,~7s,~7s,~7s,~7s,~7s,~7s,~7s ~n", 
+                 io:format(user, "~7s,~7s,~7s,~7s,~7s,~7s,~7s,~7s,~7s ~n", 
                      ["clients",
                          "run",
                          "crits",
@@ -65,7 +65,8 @@ node_benchmark_test_() ->
                          "YIELD",
                          "RELEASE",
                          "INQUIRY",
-                         "RESPONSE"]),
+                         "RESPONSE",
+                         "YIR"]),
 
          lists:map(fun(NumClients) ->
              lists:map(fun(RunCount) ->
@@ -80,7 +81,7 @@ node_benchmark_test_() ->
                  % ?TRACE("starting a new round of lock_testers", val),
                  lists:map(fun(I) ->
                              % ?TRACE("spawning tester", I),
-                            timer:sleep(random:uniform(1000)),
+                             % timer:sleep(random:uniform(1000)),
                              spawn_link(fun() -> 
                                 lock_tester:try_for(apple, ListenerPool, Timeout, 100),
                                 Parent ! {done, self()}
