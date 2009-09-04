@@ -9,7 +9,8 @@
             gen_server:cast(Pid, stop), 
             try unregister(Pname)
             catch _:_ -> ok
-            end
+            end,
+            exit(Pid, kill)
         end, Servers)
       end)())).
 
@@ -18,7 +19,8 @@
         lists:map(fun(Pname) -> 
                 Pid = global:whereis_name(Pname),
                 gen_server:cast(Pid, stop), 
-                global:unregister_name(Pname)
+                global:unregister_name(Pname),
+                exit(Pid, kill)
             end, global:registered_names())
       end)())).
 

@@ -1,4 +1,4 @@
--define (DEBUG, true).
+-define (DEBUG, false).
 -define (DICT, dict).
 -define (SERVER_MODULE, stoplight_srv).
 -define (SERVER_GLOBAL, stoplight_srv).

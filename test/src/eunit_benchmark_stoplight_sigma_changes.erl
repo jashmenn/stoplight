@@ -73,14 +73,15 @@ node_benchmark_test_() ->
 
                  Parent = self(),
                  % Timeout = 60000 * 3,
-                 Timeout = 60000,
+                 % Timeout = 20000,
+                 Timeout = 10000,
 
                  io:format(user, "~7B,~7B,", [NumClients, RunCount]),
                  [ListenerPool, ServerPool] = start_run(),
 
                  % ?TRACE("starting a new round of lock_testers", val),
                  lists:map(fun(I) ->
-                             % ?TRACE("spawning tester", I),
+                             ?TRACE("spawning tester", I),
                              % timer:sleep(random:uniform(1000)),
                              spawn_link(fun() -> 
                                 lock_tester:try_for(apple, ListenerPool, Timeout, 100),
@@ -89,7 +90,7 @@ node_benchmark_test_() ->
                   end,
                  lists:seq(1, NumClients)),
 
-                 flush_buffer(NumClients, Timeout + 5000),
+                 flush_buffer(NumClients, 5000),
                  stop_run(lists:append(ListenerPool, ServerPool)),
                  ok
 
@@ -103,6 +104,7 @@ node_benchmark_test_() ->
          % [1, 5, 10, 15]),
          % [59]),
          [100]),
+         % [50]),
 
          {ok}
       end
