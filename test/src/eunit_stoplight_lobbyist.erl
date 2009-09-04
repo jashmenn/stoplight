@@ -117,20 +117,27 @@ node_responses_dont_get_crit_test_() ->
       fun () ->
          Servers = gen_server_mock:new(5),
          [Mock1, Mock2, Mock3, Mock4, _Mock5] = Servers,
+         ?TRACE("Servers", Servers),
 
          {ok, Client} = gen_server_mock:new(),
+
+         % create two lobbists, get their requests
+         % R1 is older
+         {ok, Lob2} = stoplight_lobbyist:start_named(lobbyist3, [{name, cats}, {servers, Servers}, {client, Client}, {request_ttl, 5000}]),
+         {ok, R1} = gen_server:call(Lob2, request),
 
          {ok, Lob1} = stoplight_lobbyist:start_named(lobbyist2, [{name, cats}, {servers, Servers}, {client, Client}, {request_ttl, 5000}]),
          {ok, R0} = gen_server:call(Lob1, request),
 
-         {ok, Lob2} = stoplight_lobbyist:start_named(lobbyist3, [{name, cats}, {servers, Servers}, {client, Client}, {request_ttl, 5000}]),
-         {ok, R1} = gen_server:call(Lob2, request),
-
-         R2 = R0#req{owner=self(), timestamp=9999999999}, % fake req with way newer timestamp
+         R2 = R0#req{owner=self(), timestamp=9999999999999999}, % fake req with way newer timestamp
 
          % expect inquiry
+
+         % Mock1 gets yield b/c Lob1 does not have enough support
          gen_server_mock:expect_cast(Mock1, fun({mutex, yield,   _R}, _State) -> ok end),
+         % Mock2 gets request because our request is before R2 
          gen_server_mock:expect_cast(Mock2, fun({mutex, request, _R}, _State) -> ok end),
+         % Mock3 & Mock4 get inquiry because R1 is older than R0
          gen_server_mock:expect_cast(Mock3, fun({mutex, inquiry, _R}, _State) -> ok end),
          gen_server_mock:expect_cast(Mock4, fun({mutex, inquiry, _R}, _State) -> ok end),
 
