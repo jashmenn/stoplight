@@ -228,8 +228,13 @@ multicast_servers(Msg, State) ->
 servers(State) ->
     dict:fetch_keys(State#state.responses).
 
+% this method is suspect
 update_responses_if_needed(CurrentOwner, From, State) -> % {ok, NewState}
-    {ok, State2} = case have_different_response_from_this_server(From, CurrentOwner, State) andalso
+    % {ok, State2} = case have_different_response_from_this_server(From, CurrentOwner, State) andalso
+    %             (response_owner_is_not_us(CurrentOwner, State) orelse 
+    %              response_timestamp_matches_ours(CurrentOwner, State)) of
+    % {ok, State2} = case have_different_response_from_this_server(From, CurrentOwner, State) andalso
+      {ok, State2} = case have_previous_response_from_this_server_that_is_not_my_request(From, CurrentOwner, State) andalso
                 (response_owner_is_not_us(CurrentOwner, State) orelse 
                  response_timestamp_matches_ours(CurrentOwner, State)) of
         true  -> add_server_response(CurrentOwner, From, State);
@@ -273,7 +278,7 @@ do_lobby_for_more_support([ServerPid|Rest], State) -> % {ok, NewState}
             RequestLt = request_lt(Request, Response),
             if
                 Response#req.owner =:= Request#req.owner -> 
-                    ?TRACE("yielding my request", [Request, dict:to_list(R0)]),
+                    ?TRACE("yielding my request", [Request, from, ServerPid, dict:to_list(R0)]),
                     gen_cluster:cast(ServerPid, {mutex, yield, Request}), {ok, State};
                 RequestLt                                -> gen_cluster:cast(ServerPid, {mutex, request, Request}), {ok, State};
                 true                                     -> send_inquiry_if_needed(ServerPid, State)
@@ -318,6 +323,13 @@ have_different_response_from_this_server(From, CurrentOwner, State) -> % bool()
     Responses = State#state.responses,
     case dict:find(From, Responses) of
         {ok, Response} -> Response =/= CurrentOwner;
+        error -> false
+    end.
+
+have_previous_response_from_this_server_that_is_not_my_request(From, CurrentOwner, State) -> % bool()
+    Responses = State#state.responses,
+    case dict:find(From, Responses) of
+        {ok, Response} -> Response =/= State#state.request; % Response =/= CurrentOwner;
         error -> false
     end.
 
@@ -437,3 +449,5 @@ has_request_ttl_expired(State) ->
     Ttl = Request#req.ttl,
     TtlS = stoplight_util:ceiling(Ttl / 1000),
     Now > (ReqTs + TtlS).
+
+% reluctant yielding
